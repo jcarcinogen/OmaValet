@@ -18,6 +18,7 @@ Item {
     property var valet: []
     property var existingParking: []
     property string statusText: ""
+    property string lastAction: ""
     property string scriptPath: String(Qt.resolvedUrl("scripts/omavalet.py")).replace("file://", "")
 
     readonly property color background: Color.menu.background
@@ -70,6 +71,8 @@ Item {
     function applySnapshot(snapshot) {
         valet = snapshot.valet || []
         existingParking = (snapshot.existing && snapshot.existing.parking) || []
+        if (snapshot.workspaceCount)
+            workspaceCount = Number(snapshot.workspaceCount)
         rebuildCatalog(snapshot.catalog || [])
         statusText = ""
     }
@@ -138,6 +141,7 @@ Item {
 
     function parkSelected(workspace) {
         if (!selectedApp || actionProc.running) return
+        lastAction = "park"
         statusText = "Parking " + selectedApp.name + " in workspace " + workspace + "…"
         actionProc.command = ["python3", scriptPath, "park", selectedApp.desktopId, String(workspace)]
         actionProc.running = true
@@ -145,8 +149,17 @@ Item {
 
     function unpark(desktopId, appName) {
         if (!desktopId || actionProc.running) return
+        lastAction = "unpark"
         statusText = "Returning " + appName + "…"
         actionProc.command = ["python3", scriptPath, "unpark", desktopId]
+        actionProc.running = true
+    }
+
+    function addWorkspace() {
+        if (workspaceCount >= 10 || actionProc.running) return
+        lastAction = "expand"
+        statusText = "Opening another workspace…"
+        actionProc.command = ["python3", scriptPath, "expand"]
         actionProc.running = true
     }
 
@@ -154,7 +167,7 @@ Item {
         try {
             var payload = JSON.parse(String(raw || "{}"))
             applySnapshot(action ? payload.snapshot : payload)
-            if (action) selectedApp = null
+            if (action && lastAction !== "expand") selectedApp = null
         } catch (error) {
             statusText = "The valet could not read the configuration."
         }
@@ -409,6 +422,20 @@ Item {
                                 font.capitalization: Font.AllUppercase
                             }
                             Text {
+                                text: root.workspaceCount < 10 ? "+ Workspace" : ""
+                                color: Color.accent
+                                opacity: addWorkspaceMouse.containsMouse ? 1 : 0.8
+                                visible: root.workspaceCount < 10
+                                font.family: Style.font.family
+                                font.pixelSize: Style.font.caption
+                                MouseArea {
+                                    id: addWorkspaceMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    onClicked: root.addWorkspace()
+                                }
+                            }
+                            Text {
                                 text: root.selectedApp ? "Choose a workspace" : "Select an app first"
                                 color: root.selectedApp ? Color.accent : root.foreground
                                 opacity: root.selectedApp ? 1 : 0.45
@@ -453,22 +480,32 @@ Item {
                                         anchors.margins: Style.spacing.sm
                                         spacing: Style.spacing.md
 
-                                        ColumnLayout {
+                                        Item {
                                             Layout.preferredWidth: Style.space(64)
-                                            spacing: 0
-                                            Text {
-                                                text: String(workspaceLane.workspaceNumber)
-                                                color: root.foreground
-                                                font.family: Style.font.family
-                                                font.pixelSize: Style.font.display
-                                                font.bold: true
+                                            Layout.fillHeight: true
+                                            ColumnLayout {
+                                                anchors.fill: parent
+                                                spacing: 0
+                                                Text {
+                                                    text: String(workspaceLane.workspaceNumber)
+                                                    color: root.selectedApp ? Color.accent : root.foreground
+                                                    font.family: Style.font.family
+                                                    font.pixelSize: Style.font.display
+                                                    font.bold: true
+                                                }
+                                                Text {
+                                                    text: "WORKSPACE"
+                                                    color: root.foreground
+                                                    opacity: 0.35
+                                                    font.family: Style.font.family
+                                                    font.pixelSize: Style.font.caption
+                                                }
                                             }
-                                            Text {
-                                                text: "WORKSPACE"
-                                                color: root.foreground
-                                                opacity: 0.35
-                                                font.family: Style.font.family
-                                                font.pixelSize: Style.font.caption
+                                            MouseArea {
+                                                anchors.fill: parent
+                                                enabled: !!root.selectedApp
+                                                cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                                                onClicked: root.parkSelected(workspaceLane.workspaceNumber)
                                             }
                                         }
 
@@ -558,7 +595,7 @@ Item {
                     Text {
                         Layout.fillWidth: true
                         text: root.statusText || (root.selectedApp
-                            ? root.selectedApp.name + " is ready to park"
+                            ? root.selectedApp.name + " is ready to park — click a workspace, even one that already has apps"
                             : "Existing Hyprland assignments are locked; OmaValet entries can be returned with ×")
                         elide: Text.ElideRight
                         color: root.statusText ? Color.accent : root.foreground

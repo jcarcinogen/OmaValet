@@ -8,8 +8,11 @@ import re
 import shutil
 import subprocess
 from pathlib import Path
+from typing import Optional
 
 PLUGIN_ID = "io.github.jcarcinogen.omavalet"
+DEFAULT_WORKSPACE_COUNT = 5
+MAX_WORKSPACE_COUNT = 10
 LOADER_REQUIRE = 'require("hypr.omavalet")'
 LOADER_BLOCK = (
     "-- omavalet:begin\n"
@@ -146,6 +149,33 @@ def load_state(config_home: Path) -> dict:
     return {"version": 1, "apps": []}
 
 
+def _used_workspace(value) -> Optional[int]:
+    try:
+        workspace = int(value)
+    except (TypeError, ValueError):
+        return None
+    if 1 <= workspace <= MAX_WORKSPACE_COUNT:
+        return workspace
+    return None
+
+
+def workspace_count(state: dict, existing: Optional[dict] = None) -> int:
+    """Show Omarchy's 5 lanes, then any extra slips already in use."""
+    used = [DEFAULT_WORKSPACE_COUNT]
+    requested = _used_workspace((state or {}).get("workspaceCount"))
+    if requested:
+        used.append(requested)
+    for app in (state or {}).get("apps", []):
+        workspace = _used_workspace(app.get("workspace"))
+        if workspace:
+            used.append(workspace)
+    for parked in (existing or {}).get("parking", []):
+        workspace = _used_workspace(parked.get("workspace"))
+        if workspace:
+            used.append(workspace)
+    return max(used)
+
+
 def _resolve_catalog_app(window_class: str, catalog: list[dict], aliases: dict):
     exact = aliases.get(window_class.casefold())
     if exact:
@@ -190,6 +220,7 @@ def build_snapshot(config_home: Path, app_directories) -> dict:
         "catalog": catalog,
         "valet": state.get("apps", []),
         "existing": existing,
+        "workspaceCount": workspace_count(state, existing),
     }
 
 
@@ -310,6 +341,18 @@ def unpark_app(state: dict, desktop_id: str) -> dict:
     }
 
 
+def expand_lot(state: dict, existing: Optional[dict] = None) -> dict:
+    """Open one more parking lane, up to Hyprland's ten workspaces."""
+    current = workspace_count(state, existing)
+    return {
+        **state,
+        "version": 1,
+        "workspaceCount": min(MAX_WORKSPACE_COUNT, current + 1)
+        if current < MAX_WORKSPACE_COUNT
+        else current,
+    }
+
+
 def _lua_string(value: str) -> str:
     escaped = (
         value.replace("\\", "\\\\")
@@ -378,6 +421,7 @@ def main(argv=None) -> int:
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("snapshot")
     subparsers.add_parser("reset")
+    subparsers.add_parser("expand")
     park = subparsers.add_parser("park")
     park.add_argument("desktop_id")
     park.add_argument("workspace", type=int)
@@ -406,6 +450,16 @@ def main(argv=None) -> int:
         if app is None:
             parser.error(f"desktop app not found: {args.desktop_id}")
         state = park_app(state, app, args.workspace)
+    elif args.command == "expand":
+        hypr_dir = config_home / "hypr"
+        existing = scan_existing(
+            _read_text(hypr_dir / "autostart.lua"),
+            {
+                name: _read_text(hypr_dir / name)
+                for name in ("hyprland.lua", "windows.lua")
+            },
+        )
+        state = expand_lot(state, existing)
     else:
         state = unpark_app(state, args.desktop_id)
 

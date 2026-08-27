@@ -6,7 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-from omavalet import apply_state, cleanup_state, park_app, unpark_app
+from omavalet import apply_state, cleanup_state, expand_lot, park_app, unpark_app
 
 
 class ApplyStateTest(unittest.TestCase):
@@ -89,6 +89,38 @@ class ApplyStateTest(unittest.TestCase):
         self.assertEqual(
             [app["desktopId"] for app in returned["apps"]], ["foot.desktop"]
         )
+
+    def test_parking_keeps_multiple_apps_in_the_same_workspace(self):
+        firefox = {
+            "desktopId": "firefox.desktop",
+            "name": "Firefox",
+            "class": "firefox",
+            "exec": "firefox",
+            "icon": "firefox",
+        }
+        foot = {
+            "desktopId": "foot.desktop",
+            "name": "Foot",
+            "class": "foot",
+            "exec": "foot",
+            "icon": "foot",
+        }
+
+        state = park_app({"version": 1, "apps": []}, firefox, 2)
+        state = park_app(state, foot, 2)
+
+        self.assertEqual(
+            sorted(app["desktopId"] for app in state["apps"]),
+            ["firefox.desktop", "foot.desktop"],
+        )
+        self.assertEqual({app["workspace"] for app in state["apps"]}, {2})
+
+    def test_expand_lot_opens_the_next_workspace_slip(self):
+        expanded = expand_lot({"version": 1, "apps": []})
+        self.assertEqual(expanded["workspaceCount"], 6)
+
+        full = expand_lot({"version": 1, "workspaceCount": 10, "apps": []})
+        self.assertEqual(full["workspaceCount"], 10)
 
     def test_cleanup_removes_only_omavalet_owned_files_and_loader(self):
         with tempfile.TemporaryDirectory() as tmp:

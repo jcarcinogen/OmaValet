@@ -56,6 +56,22 @@ class SnapshotTest(unittest.TestCase):
         self.assertEqual(snapshot["existing"]["parking"][0]["name"], "Firefox")
         self.assertEqual(snapshot["existing"]["parking"][0]["icon"], "firefox")
         self.assertEqual(snapshot["existing"]["launches"][0]["exec"], "syncthing")
+        self.assertEqual(snapshot["workspaceCount"], 5)
+
+    def test_shows_extra_lanes_when_existing_parking_uses_them(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            hypr = root / "hypr"
+            hypr.mkdir()
+            (root / "omarchy").mkdir()
+            (hypr / "hyprland.lua").write_text(
+                'o.window("qemu", { workspace = "7 silent" })\n',
+                encoding="utf-8",
+            )
+
+            snapshot = build_snapshot(root, [])
+
+        self.assertEqual(snapshot["workspaceCount"], 7)
 
 
 if __name__ == "__main__":

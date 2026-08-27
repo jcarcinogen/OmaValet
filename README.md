@@ -9,7 +9,9 @@ OmaValet is a minimal, theme-aware workspace launcher for Omarchy Quattro. It sh
 ## Features
 
 - Search installed desktop applications by name.
-- See five workspace parking lanes at a glance.
+- See five workspace parking lanes at a glance, matching Omarchy's default.
+- Park more than one app in the same workspace.
+- Add extra workspaces from the overlay when you need a lane that isn't shown yet.
 - Click an app, then click a workspace to park it there.
 - See existing Hyprland assignments as locked, read-only entries.
 - Remove OmaValet-owned assignments with **×**.
@@ -36,8 +38,9 @@ The plugin appears on the right side of the Omarchy bar. Click its icon to open 
 
 1. Open **OmaValet** from the bar.
 2. Search for and select an application.
-3. Click the workspace where the valet should park it.
-4. Remove an OmaValet assignment by clicking its **×**.
+3. Click the workspace where the valet should park it. A lane can hold several apps.
+4. Use **+ Workspace** if you need a lane past the five Omarchy shows by default.
+5. Remove an OmaValet assignment by clicking its **×**.
 
 Locked entries come from existing user-authored Hyprland rules. OmaValet shows them for context but does not overwrite or remove them.
 
@@ -88,7 +91,7 @@ The plugin id is `io.github.jcarcinogen.omavalet`.
 
 ## Current scope
 
-- Workspaces 1–5 are shown by default; the manifest setting supports up to 10.
+- Workspaces 1–5 are shown by default, matching Omarchy. Extra lanes appear if you already park there, or when you click **+ Workspace** (up to 10).
 - Existing assignments found in `hyprland.lua` and `windows.lua` are read-only.
 - Application identity comes from freedesktop desktop files, preferring `StartupWMClass` when available.
 
