@@ -114,6 +114,34 @@ class DesktopCatalogTest(unittest.TestCase):
                 any(app["desktopId"] == "hidden.desktop" for app in desktop_catalog([directory]))
             )
 
+    def test_does_not_follow_replaceable_desktop_entry_symlink(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            applications = root / "applications"
+            applications.mkdir()
+            target = root / "outside.desktop"
+            target.write_text(
+                "[Desktop Entry]\nName=Outside\nExec=outside\n",
+                encoding="utf-8",
+            )
+            (applications / "planted.desktop").symlink_to(target)
+
+            apps = desktop_catalog([applications])
+
+        self.assertFalse(any(app["desktopId"] == "planted.desktop" for app in apps))
+
+    def test_ignores_oversized_desktop_entry(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            (directory / "oversized.desktop").write_text(
+                "[Desktop Entry]\nName=Oversized\nExec=oversized\n" + " " * 262_144,
+                encoding="utf-8",
+            )
+
+            apps = desktop_catalog([directory])
+
+        self.assertFalse(any(app["desktopId"] == "oversized.desktop" for app in apps))
+
 
 if __name__ == "__main__":
     unittest.main()

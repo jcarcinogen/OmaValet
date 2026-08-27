@@ -16,6 +16,8 @@ PLUGIN_ID = "io.github.jcarcinogen.omavalet"
 DEFAULT_WORKSPACE_COUNT = 5
 MAX_WORKSPACE_COUNT = 10
 MAX_STATE_BYTES = 1_048_576
+MAX_HYPR_CONFIG_BYTES = 1_048_576
+MAX_DESKTOP_ENTRY_BYTES = 262_144
 LOADER_REQUIRE = 'require("hypr.omavalet")'
 LOADER_BLOCK = (
     "-- omavalet:begin\n"
@@ -98,9 +100,12 @@ def desktop_catalog(directories) -> list[dict]:
                 continue
             parser = configparser.ConfigParser(interpolation=None, strict=False)
             try:
-                parser.read(path, encoding="utf-8")
+                parser.read_string(
+                    _read_text_nofollow(path, MAX_DESKTOP_ENTRY_BYTES),
+                    source=str(path),
+                )
                 entry = parser["Desktop Entry"]
-            except (OSError, KeyError, configparser.Error):
+            except (OSError, UnicodeError, KeyError, configparser.Error):
                 continue
             name = entry.get("Name", "").strip()
             command = strip_exec(entry.get("Exec", ""))
@@ -201,9 +206,10 @@ def scan_existing(autostart_text: str, rule_texts: dict[str, str]) -> dict:
 
 
 def _read_text(path: Path) -> str:
+    """Read an optional Hyprland config safely, treating unsafe inputs as absent."""
     try:
-        return path.read_text(encoding="utf-8")
-    except OSError:
+        return _read_text_nofollow(path, MAX_HYPR_CONFIG_BYTES)
+    except (OSError, UnicodeError):
         return ""
 
 

@@ -333,6 +333,17 @@ class ApplyStateTest(unittest.TestCase):
                 "firefox.desktop",
             )
 
+    def test_load_state_treats_invalid_utf8_as_empty_state(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp)
+            omarchy = config / "omarchy"
+            omarchy.mkdir()
+            (omarchy / "omavalet.json").write_bytes(b"\xff\xfe")
+
+            state = load_state(config)
+
+        self.assertEqual(state, {"version": 1, "apps": []})
+
 
 if __name__ == "__main__":
     unittest.main()
