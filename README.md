@@ -39,7 +39,7 @@ The plugin appears on the right side of the Omarchy bar. Click its icon to open 
 1. Open **OmaValet** from the bar.
 2. Search for and select an application.
 3. Click the workspace where the valet should park it. A lane can hold several apps.
-4. Use **+ Workspace** if you need a lane past the five Omarchy shows by default.
+4. Use **+ Add workspace** under the lanes if you need a workspace past the five Omarchy shows by default.
 5. Remove an OmaValet assignment by clicking its **×**.
 
 Locked entries come from existing user-authored Hyprland rules. OmaValet shows them for context but does not overwrite or remove them.

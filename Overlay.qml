@@ -422,20 +422,6 @@ Item {
                                 font.capitalization: Font.AllUppercase
                             }
                             Text {
-                                text: root.workspaceCount < 10 ? "+ Workspace" : ""
-                                color: Color.accent
-                                opacity: addWorkspaceMouse.containsMouse ? 1 : 0.8
-                                visible: root.workspaceCount < 10
-                                font.family: Style.font.family
-                                font.pixelSize: Style.font.caption
-                                MouseArea {
-                                    id: addWorkspaceMouse
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    onClicked: root.addWorkspace()
-                                }
-                            }
-                            Text {
                                 text: root.selectedApp ? "Choose a workspace" : "Select an app first"
                                 color: root.selectedApp ? Color.accent : root.foreground
                                 opacity: root.selectedApp ? 1 : 0.45
@@ -509,22 +495,13 @@ Item {
                                             }
                                         }
 
-                                        Text {
-                                            Layout.fillWidth: true
-                                            visible: workspaceLane.parkedRows.length === 0
-                                            text: root.selectedApp ? "Park here" : "Available"
-                                            color: root.selectedApp ? Color.accent : root.foreground
-                                            opacity: root.selectedApp ? 0.9 : 0.28
-                                            font.family: Style.font.family
-                                            font.pixelSize: Style.font.caption
-                                        }
-
                                         ListView {
                                             id: parkedList
                                             Layout.fillWidth: true
                                             Layout.fillHeight: true
                                             visible: workspaceLane.parkedRows.length > 0
                                             orientation: ListView.Horizontal
+                                            interactive: false
                                             spacing: Style.spacing.xs
                                             clip: true
                                             model: workspaceLane.parkedRows
@@ -565,26 +542,77 @@ Item {
                                                     Text {
                                                         text: parkedChip.modelData.owned ? "×" : "󰌾"
                                                         color: parkedChip.modelData.owned ? root.foreground : Color.accent
-                                                        opacity: chipMouse.containsMouse || !parkedChip.modelData.owned ? 0.9 : 0.45
+                                                        opacity: unparkMouse.containsMouse || !parkedChip.modelData.owned ? 0.9 : 0.45
                                                         font.family: Style.font.family
                                                         font.pixelSize: Style.font.body
-                                                    }
-                                                }
-
-                                                MouseArea {
-                                                    id: chipMouse
-                                                    anchors.fill: parent
-                                                    hoverEnabled: true
-                                                    onClicked: {
-                                                        mouse.accepted = true
-                                                        if (parkedChip.modelData.owned)
-                                                            root.unpark(parkedChip.modelData.desktopId, parkedChip.modelData.name)
+                                                        MouseArea {
+                                                            id: unparkMouse
+                                                            anchors.fill: parent
+                                                            hoverEnabled: true
+                                                            enabled: parkedChip.modelData.owned === true
+                                                            onClicked: function(mouse) {
+                                                                mouse.accepted = true
+                                                                root.unpark(parkedChip.modelData.desktopId, parkedChip.modelData.name)
+                                                            }
+                                                        }
                                                     }
                                                 }
                                             }
                                         }
+
+                                        Text {
+                                            visible: !!root.selectedApp
+                                            text: workspaceLane.parkedRows.length > 0 ? "+ Park" : "Park here"
+                                            color: Color.accent
+                                            opacity: 0.9
+                                            font.family: Style.font.family
+                                            font.pixelSize: Style.font.caption
+                                            MouseArea {
+                                                anchors.fill: parent
+                                                onClicked: root.parkSelected(workspaceLane.workspaceNumber)
+                                            }
+                                        }
+
+                                        Text {
+                                            Layout.fillWidth: true
+                                            visible: !root.selectedApp && workspaceLane.parkedRows.length === 0
+                                            text: "Available"
+                                            color: root.foreground
+                                            opacity: 0.28
+                                            font.family: Style.font.family
+                                            font.pixelSize: Style.font.caption
+                                        }
                                     }
                                 }
+                            }
+                        }
+
+                        Rectangle {
+                            id: addWorkspaceButton
+                            visible: root.workspaceCount < 10
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: Style.space(40)
+                            Layout.minimumHeight: Style.space(40)
+                            radius: root.cornerRadius
+                            color: addWorkspaceMouse.containsMouse
+                                ? Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.16)
+                                : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.05)
+                            border.width: Math.max(1, Style.space(1))
+                            border.color: Color.accent
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: "+ Add workspace"
+                                color: Color.accent
+                                font.family: Style.font.family
+                                font.pixelSize: Style.font.body
+                            }
+
+                            MouseArea {
+                                id: addWorkspaceMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                onClicked: root.addWorkspace()
                             }
                         }
                     }
@@ -595,8 +623,8 @@ Item {
                     Text {
                         Layout.fillWidth: true
                         text: root.statusText || (root.selectedApp
-                            ? root.selectedApp.name + " is ready to park — click a workspace, even one that already has apps"
-                            : "Existing Hyprland assignments are locked; OmaValet entries can be returned with ×")
+                            ? "Park " + root.selectedApp.name + " with + Park, or click the lane"
+                            : "Locked apps stay put. × returns OmaValet parking.")
                         elide: Text.ElideRight
                         color: root.statusText ? Color.accent : root.foreground
                         opacity: root.statusText ? 1 : 0.5

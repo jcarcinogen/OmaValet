@@ -40,6 +40,7 @@ BarWidget {
 
     Loader {
         id: overlayLoader
+        // Keep Overlay.qml loaded so parking lanes stay available.
         active: true
         source: Qt.resolvedUrl("Overlay.qml")
         visible: false
