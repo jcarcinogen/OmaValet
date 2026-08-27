@@ -64,8 +64,10 @@ Item {
     }
 
     function iconSource(iconName) {
-        var name = String(iconName || "application-x-executable")
-        if (name.indexOf("/") === 0) return "file://" + name
+        var name = String(iconName || "")
+        if (name.indexOf("/") !== -1 || name.indexOf(":") !== -1)
+            name = ""
+        if (!name) name = "application-x-executable"
         return Quickshell.iconPath(name, true)
     }
 

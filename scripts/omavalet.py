@@ -57,6 +57,14 @@ def _usable_wm_class(value: str) -> bool:
     return bool(value) and not value.startswith("@@") and "%" not in value
 
 
+def _safe_icon_name(value: str) -> str:
+    """Keep theme icon names; never expose a replaceable file or URL to QML."""
+    value = (value or "").strip()
+    if not value or "/" in value or "\\" in value or ":" in value:
+        return ""
+    return value
+
+
 def window_class_for(
     startup_wm_class: str, desktop_stem: str, exec_line: str = ""
 ) -> str:
@@ -122,7 +130,7 @@ def desktop_catalog(directories) -> list[dict]:
                     "desktopId": path.name,
                     "name": name,
                     "exec": command,
-                    "icon": entry.get("Icon", "").strip(),
+                    "icon": _safe_icon_name(entry.get("Icon", "")),
                     "class": window_class_for(
                         entry.get("StartupWMClass", ""), path.stem, command
                     ),

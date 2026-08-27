@@ -142,6 +142,31 @@ class DesktopCatalogTest(unittest.TestCase):
 
         self.assertFalse(any(app["desktopId"] == "oversized.desktop" for app in apps))
 
+    def test_does_not_expose_file_or_url_icons_to_qml(self):
+        unsafe_icons = (
+            "/tmp/replaceable-icon.png",
+            "file:///tmp/replaceable-icon.png",
+            "https://example.invalid/icon.png",
+            "../replaceable-icon.png",
+            "replaceable\\icon.png",
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            for index, icon in enumerate(unsafe_icons):
+                (directory / f"unsafe-icon-{index}.desktop").write_text(
+                    "[Desktop Entry]\n"
+                    f"Name=Unsafe Icon {index}\n"
+                    f"Exec=unsafe-icon-{index}\n"
+                    f"Icon={icon}\n",
+                    encoding="utf-8",
+                )
+
+            apps = desktop_catalog([directory])
+
+        unsafe_apps = [app for app in apps if app["desktopId"].startswith("unsafe-icon-")]
+        self.assertEqual(len(unsafe_apps), len(unsafe_icons))
+        self.assertTrue(all(app["icon"] == "" for app in unsafe_apps))
+
 
 if __name__ == "__main__":
     unittest.main()
