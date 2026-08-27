@@ -1,5 +1,7 @@
 # OmaValet
 
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/T2J625IUHY)
+
 **Park apps in the Omarchy workspaces where they belong.**
 
 OmaValet is a minimal, theme-aware workspace valet for Omarchy Quattro. It shows applications by their desktop name and icon, displays existing Hyprland workspace assignments, and lets you assign apps to workspaces without hand-editing Lua. Placement is the default. Launch-at-login is optional and off by default.
