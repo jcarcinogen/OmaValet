@@ -2,11 +2,13 @@
 
 import argparse
 import configparser
+import errno
 import json
 import os
 import re
-import shutil
+import stat
 import subprocess
+import tempfile
 from pathlib import Path
 from typing import Optional
 
@@ -308,11 +310,74 @@ def remove_loader(hyprland_lua: str) -> str:
     return hyprland_lua.replace(LOADER_BLOCK, "")
 
 
-def _write_if_changed(path: Path, content: str) -> bool:
-    if path.exists() and path.read_text(encoding="utf-8") == content:
+def _is_symlink(path: Path) -> bool:
+    try:
+        return stat.S_ISLNK(path.lstat().st_mode)
+    except FileNotFoundError:
         return False
+
+
+def _is_regular_file(path: Path) -> bool:
+    try:
+        return stat.S_ISREG(path.lstat().st_mode)
+    except FileNotFoundError:
+        return False
+
+
+def _read_text_nofollow(path: Path) -> str:
+    """Read a regular file; fail if the path is a symlink."""
+    flags = os.O_RDONLY
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    fd = os.open(path, flags)
+    with os.fdopen(fd, "r", encoding="utf-8") as handle:
+        return handle.read()
+
+
+def _atomic_write(path: Path, content: str) -> None:
+    """Replace path with content without following a dest symlink or truncating in place."""
+    path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8")
+    fd, tmp_name = tempfile.mkstemp(
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+        dir=path.parent,
+    )
+    tmp_path = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(tmp_path, path)
+    except Exception:
+        try:
+            tmp_path.unlink()
+        except FileNotFoundError:
+            pass
+        raise
+
+
+def _write_if_changed(path: Path, content: str) -> bool:
+    path = Path(path)
+    if _is_symlink(path):
+        _atomic_write(path, content)
+        return True
+    try:
+        if _read_text_nofollow(path) == content:
+            return False
+    except FileNotFoundError:
+        pass
+    _atomic_write(path, content)
+    return True
+
+
+def _unlink_nofollow(path: Path) -> bool:
+    try:
+        path.lstat()
+    except FileNotFoundError:
+        return False
+    path.unlink()
     return True
 
 
@@ -344,13 +409,16 @@ def apply_state(state: dict, config_home: Path, catalog=None) -> dict:
     omarchy_dir = config_home / "omarchy"
     hyprland_path = hypr_dir / "hyprland.lua"
     backup_path = hypr_dir / "hyprland.lua.omavalet.bak"
-    if not hyprland_path.exists():
-        raise FileNotFoundError(f"Hyprland config not found: {hyprland_path}")
+    if _is_symlink(hyprland_path):
+        raise OSError(errno.ELOOP, "refusing to follow symlink", str(hyprland_path))
+    try:
+        original = _read_text_nofollow(hyprland_path)
+    except FileNotFoundError as exc:
+        raise FileNotFoundError(f"Hyprland config not found: {hyprland_path}") from exc
 
-    original = hyprland_path.read_text(encoding="utf-8")
     installed = install_loader(original)
-    if installed != original and not backup_path.exists():
-        shutil.copy2(hyprland_path, backup_path)
+    if installed != original and not _is_regular_file(backup_path):
+        _atomic_write(backup_path, original)
 
     changed = False
     changed |= _write_if_changed(
@@ -370,8 +438,8 @@ def cleanup_state(config_home: Path) -> dict:
     changed = False
     cleaned = None
 
-    if hyprland_path.exists():
-        current = hyprland_path.read_text(encoding="utf-8")
+    if _is_regular_file(hyprland_path):
+        current = _read_text_nofollow(hyprland_path)
         cleaned = remove_loader(current)
         changed |= _write_if_changed(hyprland_path, cleaned)
 
@@ -379,16 +447,15 @@ def cleanup_state(config_home: Path) -> dict:
         hypr_dir / "omavalet.lua",
         config_home / "omarchy" / "omavalet.json",
     ):
-        if owned_path.exists():
-            owned_path.unlink()
+        if _unlink_nofollow(owned_path):
             changed = True
 
-    if backup_path.exists() and cleaned is not None:
-        if backup_path.read_text(encoding="utf-8") == cleaned:
-            backup_path.unlink()
+    if cleaned is not None and _is_regular_file(backup_path):
+        if _read_text_nofollow(backup_path) == cleaned:
+            _unlink_nofollow(backup_path)
             changed = True
 
-    return {"changed": changed, "backupPreserved": backup_path.exists()}
+    return {"changed": changed, "backupPreserved": _is_regular_file(backup_path) or _is_symlink(backup_path)}
 
 
 def park_app(state: dict, app: dict, workspace: int) -> dict:
