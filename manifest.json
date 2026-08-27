@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.jcarcinogen.omavalet",
+  "name": "OmaValet",
+  "version": "0.1.0",
+  "author": "Scott Angel",
+  "license": "MIT",
+  "description": "Park startup apps in the workspaces where they belong.",
+  "kinds": ["bar-widget", "overlay"],
+  "keepLoaded": true,
+  "entryPoints": {
+    "barWidget": "BarWidget.qml",
+    "overlay": "Overlay.qml"
+  },
+  "barWidget": {
+    "displayName": "OmaValet",
+    "description": "Choose which apps start in each workspace.",
+    "category": "System",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "workspaceCount": 5
+    },
+    "schema": [
+      {
+        "key": "workspaceCount",
+        "type": "integer",
+        "label": "Workspace count",
+        "min": 1,
+        "max": 10,
+        "step": 1,
+        "defaultValue": 5
+      }
+    ]
+  }
+}
