@@ -4,7 +4,7 @@
 
 OmaValet is a minimal, theme-aware workspace valet for Omarchy Quattro. It shows applications by their desktop name and icon, displays existing Hyprland workspace assignments, and lets you assign apps to workspaces without hand-editing Lua. Placement is the default. Launch-at-login is optional and off by default.
 
-![OmaValet on Omarchy Quattro](assets/omavalet.png)
+![OmaValet on Omarchy Quattro](preview.png)
 
 ## Features
 
@@ -26,9 +26,9 @@ OmaValet is a minimal, theme-aware workspace valet for Omarchy Quattro. It shows
 ## Requirements
 
 - Omarchy Quattro (Omarchy 4)
-- Python 3
+- Python 3 (standard library only)
 
-OmaValet uses only the Python standard library. It does not require root and does not launch a second Quickshell process.
+No extra packages, no sudo or pkexec, and no second Quickshell process. Installing the plugin does not write Hyprland config; parking an app does, and only after you click.
 
 ## Install
 

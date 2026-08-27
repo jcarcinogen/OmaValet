@@ -12,7 +12,7 @@
   },
   "barWidget": {
     "displayName": "OmaValet",
-    "description": "Choose which apps start in each workspace.",
+    "description": "Park apps in the workspaces where they belong.",
     "category": "System",
     "allowMultiple": false,
     "defaultSection": "right",
