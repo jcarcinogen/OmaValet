@@ -2,20 +2,23 @@
 
 **Park apps in the Omarchy workspaces where they belong.**
 
-OmaValet is a minimal, theme-aware workspace valet for Omarchy Quattro. It shows applications by their desktop name and icon, displays existing Hyprland workspace assignments, and lets you assign apps to workspaces without hand-editing Lua. Launch-at-login is optional and off by default.
+OmaValet is a minimal, theme-aware workspace valet for Omarchy Quattro. It shows applications by their desktop name and icon, displays existing Hyprland workspace assignments, and lets you assign apps to workspaces without hand-editing Lua. Placement is the default. Launch-at-login is optional and off by default.
 
 ![OmaValet on Omarchy Quattro](assets/omavalet.png)
 
 ## Features
 
-- Search installed desktop applications by name.
+- Search installed desktop applications by name, including Omarchy **Agent** (`Super+Ctrl+Shift+A`).
 - See five workspace parking lanes at a glance, matching Omarchy's default.
 - Park more than one app in the same workspace.
-- Add extra workspaces from the overlay when you need a lane that isn't shown yet, and remove empty extras down to five.
-- Click an app, then click a workspace to park it there.
+- Add extra workspaces with **+ Add workspace** (up to 10), and remove empty extras with **− Remove workspace** down to five.
+- Click an app, then click a workspace (or **+ Park**) to park it there.
+- Opening a parked app switches to its workspace. **⏻** login start does not steal the current workspace.
 - See existing Hyprland assignments as locked, read-only entries.
 - Remove OmaValet-owned assignments with **×**.
-- Optionally launch a parked app at login with **⏻** (off by default).
+- Optionally start a parked app at login with **⏻** (off by default).
+- Press **Esc** to close (first press clears search if it has text).
+- Match real window classes from StartupWMClass, desktop id, and Flatpak `--command=` so apps land on the right workspace.
 - Follow the active Omarchy theme through its native `Color`, `Style`, and `Border` tokens.
 - Generate deterministic Hyprland Lua without rewriting `autostart.lua`.
 - Back up `hyprland.lua` before adding the reversible loader block.
@@ -39,10 +42,11 @@ The plugin appears on the right side of the Omarchy bar. Click its icon to open 
 
 1. Open **OmaValet** from the bar.
 2. Search for and select an application.
-3. Click the workspace where the valet should park it. A lane can hold several apps.
-4. Use **+ Add workspace** under the lanes if you need a workspace past the five Omarchy shows by default.
+3. Click the workspace where the valet should park it, or **+ Park** on a lane that already has apps.
+4. Use **+ Add workspace** under the lanes if you need a workspace past the five Omarchy shows by default. Use **− Remove workspace** to drop an empty extra lane. Five lanes always remain.
 5. Remove an OmaValet assignment by clicking its **×**.
-6. Click **⏻** on a parked app if you also want it to start at login.
+6. Click **⏻** on a parked app if you also want it to start at login. Login start stays on that workspace without switching away from wherever you are.
+7. Press **Esc** to close.
 
 Locked entries come from existing user-authored Hyprland rules. OmaValet shows them for context but does not overwrite or remove them.
 
@@ -51,11 +55,11 @@ Locked entries come from existing user-authored Hyprland rules. OmaValet shows t
 OmaValet does not edit `~/.config/hypr/autostart.lua`. Placement is the default; login launch is opt-in:
 
 - `~/.config/omarchy/omavalet.json` — OmaValet-owned assignments
-- `~/.config/hypr/omavalet.lua` — generated `o.window(...)` rules, plus `o.launch_on_start(...)` only when **⏻** is on
+- `~/.config/hypr/omavalet.lua` — generated `o.window(...)` rules (follow the workspace on a normal launch). When **⏻** is on, also `o.exec_on_start("[workspace N silent] uwsm-app -- …")`
 - `~/.config/hypr/hyprland.lua.omavalet.bak` — first-write backup
 - a marked `require("hypr.omavalet")` block in `~/.config/hypr/hyprland.lua`
 
-Parked apps go to their workspace when you open them. They start at login only if you turn **⏻** on.
+Parked apps go to their workspace when you open them. They start at login only if you turn **⏻** on, and that start is silent.
 
 ## Remove
 
@@ -93,9 +97,9 @@ The plugin id is `io.github.jcarcinogen.omavalet`.
 
 ## Current scope
 
-- Workspaces 1–5 are shown by default, matching Omarchy. Extra lanes appear if you already park there, or when you click **+ Workspace** (up to 10).
+- Workspaces 1–5 are shown by default, matching Omarchy. Extra lanes appear if you already park there, or when you click **+ Add workspace** (up to 10). Empty extras can be removed down to five.
 - Existing assignments found in `hyprland.lua` and `windows.lua` are read-only.
-- Application identity comes from freedesktop desktop files, preferring `StartupWMClass` when available.
+- Application identity comes from freedesktop desktop files plus live class aliases (StartupWMClass, desktop stem, Flatpak `--command=`). Omarchy Agent is included even without a `.desktop` launcher.
 
 ## License
 
