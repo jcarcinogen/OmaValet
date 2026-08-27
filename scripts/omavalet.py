@@ -317,7 +317,7 @@ def park_app(state: dict, app: dict, workspace: int) -> dict:
         "icon": app.get("icon", ""),
         "workspace": workspace,
         "enabled": True,
-        "silent": True,
+        "silent": False,
     }
     apps = [
         dict(existing)
@@ -380,7 +380,7 @@ def render_lua(state: dict) -> str:
         workspace = int(app["workspace"])
         if not 1 <= workspace <= 10:
             raise ValueError("workspace must be between 1 and 10")
-        silent = " silent" if app.get("silent", True) else ""
+        silent = " silent" if app.get("silent", False) else ""
         lines.append(
             f"o.window({_lua_string(app['class'])}, "
             f'{{ workspace = "{workspace}{silent}" }})'
@@ -416,6 +416,24 @@ def _reload_hyprland() -> None:
     )
 
 
+def _hyprctl_dispatch(lua_expr: str) -> None:
+    subprocess.run(
+        ["hyprctl", "dispatch", lua_expr],
+        check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+
+def reveal_parking(app: dict) -> None:
+    """Switch to the parking lane and launch so the user sees the app."""
+    workspace = int(app["workspace"])
+    _hyprctl_dispatch(f'hl.dsp.focus({{ workspace = "{workspace}" }})')
+    command = str(app.get("exec") or "").strip()
+    if command:
+        _hyprctl_dispatch(f"hl.dsp.exec_cmd({_lua_string(command)})")
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="OmaValet workspace parking engine")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -442,6 +460,7 @@ def main(argv=None) -> int:
         return 0
 
     state = load_state(config_home)
+    parked = None
     if args.command == "park":
         catalog = desktop_catalog(directories)
         app = next(
@@ -450,6 +469,9 @@ def main(argv=None) -> int:
         if app is None:
             parser.error(f"desktop app not found: {args.desktop_id}")
         state = park_app(state, app, args.workspace)
+        parked = next(
+            item for item in state["apps"] if item.get("desktopId") == args.desktop_id
+        )
     elif args.command == "expand":
         hypr_dir = config_home / "hypr"
         existing = scan_existing(
@@ -466,6 +488,8 @@ def main(argv=None) -> int:
     result = apply_state(state, config_home)
     if result["changed"]:
         _reload_hyprland()
+    if parked:
+        reveal_parking(parked)
     print(json.dumps({**result, "snapshot": build_snapshot(config_home, directories)}))
     return 0
 

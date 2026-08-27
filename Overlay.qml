@@ -50,6 +50,14 @@ Item {
             shell.hide((manifest && manifest.id) || "io.github.jcarcinogen.omavalet")
     }
 
+    function handleEscape() {
+        if (root.filterText) {
+            searchInput.text = ""
+            return
+        }
+        dismiss()
+    }
+
     function toggle() {
         if (opened) dismiss()
         else open("{}")
@@ -167,7 +175,12 @@ Item {
         try {
             var payload = JSON.parse(String(raw || "{}"))
             applySnapshot(action ? payload.snapshot : payload)
-            if (action && lastAction !== "expand") selectedApp = null
+            if (action && lastAction === "park") {
+                selectedApp = null
+                root.dismiss()
+            } else if (action && lastAction !== "expand") {
+                selectedApp = null
+            }
         } catch (error) {
             statusText = "The valet could not read the configuration."
         }
@@ -201,6 +214,12 @@ Item {
         WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
         exclusionMode: ExclusionMode.Ignore
 
+        Shortcut {
+            sequence: "Escape"
+            enabled: root.opened
+            onActivated: root.handleEscape()
+        }
+
         Rectangle {
             anchors.fill: parent
             color: root.scrim
@@ -230,8 +249,7 @@ Item {
                 Keys.priority: Keys.BeforeItem
                 Keys.onPressed: function(event) {
                     if (event.key === Qt.Key_Escape) {
-                        if (root.filterText) searchInput.text = ""
-                        else root.dismiss()
+                        root.handleEscape()
                         event.accepted = true
                     } else if (event.modifiers & Qt.ControlModifier && event.key === Qt.Key_F) {
                         searchInput.forceActiveFocus()
@@ -298,6 +316,12 @@ Item {
                             font.family: Style.font.family
                             font.pixelSize: Style.font.body
                             clip: true
+                            Keys.onPressed: function(event) {
+                                if (event.key === Qt.Key_Escape) {
+                                    root.handleEscape()
+                                    event.accepted = true
+                                }
+                            }
                             onTextChanged: {
                                 root.filterText = text
                                 root.rebuildCatalog()

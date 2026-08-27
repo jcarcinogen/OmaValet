@@ -53,7 +53,7 @@ OmaValet does not edit `~/.config/hypr/autostart.lua`. Startup and placement are
 - `~/.config/hypr/hyprland.lua.omavalet.bak` — first-write backup
 - a marked `require("hypr.omavalet")` block in `~/.config/hypr/hyprland.lua`
 
-Generated applications launch at the next Hyprland session start. The matching window rule parks each application in its assigned workspace.
+Generated applications launch immediately and at the next Hyprland session start. OmaValet switches to the assigned workspace so you can see the window land.
 
 ## Remove
 
