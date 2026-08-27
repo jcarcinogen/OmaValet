@@ -28,7 +28,7 @@ OmaValet is a minimal, theme-aware workspace valet for Omarchy Quattro. It shows
 - Omarchy Quattro (Omarchy 4)
 - Python 3 (standard library only)
 
-No extra packages, no sudo or pkexec, and no second Quickshell process. Installing the plugin does not write Hyprland config; parking an app does, and only after you click.
+No extra packages and no second Quickshell process. No sudo or pkexec is required. Installing the plugin does not write Hyprland config; parking an app does, and only after you click.
 
 ## Install
 
