@@ -1,4 +1,5 @@
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -10,6 +11,7 @@ from omavalet import (
     apply_state,
     cleanup_state,
     expand_lot,
+    load_state,
     park_app,
     set_launch_on_start,
     shrink_lot,
@@ -276,6 +278,60 @@ class ApplyStateTest(unittest.TestCase):
             )
             self.assertTrue(planted.is_symlink())
             self.assertFalse((hypr / "omavalet.lua").exists())
+
+    def test_load_state_returns_empty_when_omavalet_json_is_a_fifo(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp)
+            omarchy = config / "omarchy"
+            omarchy.mkdir()
+            os.mkfifo(omarchy / "omavalet.json")
+
+            state = load_state(config)
+
+            self.assertEqual(state, {"version": 1, "apps": []})
+
+    def test_load_state_rejects_oversized_omavalet_json_before_parsing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp)
+            omarchy = config / "omarchy"
+            omarchy.mkdir()
+            parked = {
+                "version": 1,
+                "apps": [{"desktopId": "firefox.desktop", "workspace": 2}],
+            }
+            (omarchy / "omavalet.json").write_text(
+                json.dumps(parked) + (" " * (2 * 1024 * 1024)),
+                encoding="utf-8",
+            )
+
+            state = load_state(config)
+
+            self.assertEqual(state["apps"], [])
+
+    def test_load_state_does_not_follow_omavalet_json_symlink(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp)
+            omarchy = config / "omarchy"
+            omarchy.mkdir()
+            victim = config / "victim.json"
+            victim.write_text(
+                json.dumps(
+                    {
+                        "version": 1,
+                        "apps": [{"desktopId": "firefox.desktop", "workspace": 2}],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (omarchy / "omavalet.json").symlink_to(victim)
+
+            state = load_state(config)
+
+            self.assertEqual(state["apps"], [])
+            self.assertEqual(
+                json.loads(victim.read_text(encoding="utf-8"))["apps"][0]["desktopId"],
+                "firefox.desktop",
+            )
 
 
 if __name__ == "__main__":

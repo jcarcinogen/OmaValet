@@ -15,6 +15,7 @@ from typing import Optional
 PLUGIN_ID = "io.github.jcarcinogen.omavalet"
 DEFAULT_WORKSPACE_COUNT = 5
 MAX_WORKSPACE_COUNT = 10
+MAX_STATE_BYTES = 1_048_576
 LOADER_REQUIRE = 'require("hypr.omavalet")'
 LOADER_BLOCK = (
     "-- omavalet:begin\n"
@@ -209,7 +210,7 @@ def _read_text(path: Path) -> str:
 def load_state(config_home: Path) -> dict:
     state_path = Path(config_home) / "omarchy" / "omavalet.json"
     try:
-        state = json.loads(state_path.read_text(encoding="utf-8"))
+        state = json.loads(_read_text_nofollow(state_path, MAX_STATE_BYTES))
         if isinstance(state, dict) and isinstance(state.get("apps", []), list):
             return state
     except (OSError, ValueError):
@@ -324,14 +325,42 @@ def _is_regular_file(path: Path) -> bool:
         return False
 
 
-def _read_text_nofollow(path: Path) -> str:
-    """Read a regular file; fail if the path is a symlink."""
+def _read_text_nofollow(path: Path, max_bytes: int = MAX_STATE_BYTES) -> str:
+    """Read a regular file without following a symlink, FIFO, or unbounded size."""
+    try:
+        info = path.lstat()
+    except FileNotFoundError:
+        raise
+    if stat.S_ISLNK(info.st_mode):
+        raise OSError(errno.ELOOP, "refusing to follow symlink", str(path))
+    if not stat.S_ISREG(info.st_mode):
+        raise OSError(errno.EINVAL, "refusing to read non-regular file", str(path))
     flags = os.O_RDONLY
     if hasattr(os, "O_NOFOLLOW"):
         flags |= os.O_NOFOLLOW
+    if hasattr(os, "O_NONBLOCK"):
+        flags |= os.O_NONBLOCK
     fd = os.open(path, flags)
-    with os.fdopen(fd, "r", encoding="utf-8") as handle:
-        return handle.read()
+    try:
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode):
+            raise OSError(errno.EINVAL, "refusing to read non-regular file", str(path))
+        if info.st_size > max_bytes:
+            raise OSError(errno.EFBIG, "file exceeds byte cap", str(path))
+        chunks = []
+        remaining = max_bytes + 1
+        while remaining > 0:
+            piece = os.read(fd, remaining)
+            if not piece:
+                break
+            chunks.append(piece)
+            remaining -= len(piece)
+        data = b"".join(chunks)
+        if len(data) > max_bytes:
+            raise OSError(errno.EFBIG, "file exceeds byte cap", str(path))
+    finally:
+        os.close(fd)
+    return data.decode("utf-8")
 
 
 def _atomic_write(path: Path, content: str) -> None:
@@ -367,6 +396,8 @@ def _write_if_changed(path: Path, content: str) -> bool:
         if _read_text_nofollow(path) == content:
             return False
     except FileNotFoundError:
+        pass
+    except OSError:
         pass
     _atomic_write(path, content)
     return True
