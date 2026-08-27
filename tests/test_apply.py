@@ -6,7 +6,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-from omavalet import apply_state, cleanup_state, expand_lot, park_app, unpark_app
+from omavalet import (
+    apply_state,
+    cleanup_state,
+    expand_lot,
+    park_app,
+    set_launch_on_start,
+    unpark_app,
+)
 
 
 class ApplyStateTest(unittest.TestCase):
@@ -74,6 +81,7 @@ class ApplyStateTest(unittest.TestCase):
         self.assertEqual(parked["apps"][0]["workspace"], 4)
         self.assertTrue(parked["apps"][0]["silent"])
         self.assertTrue(parked["apps"][0]["enabled"])
+        self.assertFalse(parked["apps"][0]["launchOnStart"])
 
     def test_valet_can_return_an_app_to_the_unassigned_list(self):
         state = {
@@ -114,6 +122,23 @@ class ApplyStateTest(unittest.TestCase):
             ["firefox.desktop", "foot.desktop"],
         )
         self.assertEqual({app["workspace"] for app in state["apps"]}, {2})
+
+    def test_launch_on_start_can_be_turned_on_for_a_parked_app(self):
+        state = park_app(
+            {"version": 1, "apps": []},
+            {
+                "desktopId": "firefox.desktop",
+                "name": "Firefox",
+                "class": "firefox",
+                "exec": "firefox",
+            },
+            2,
+        )
+
+        booted = set_launch_on_start(state, "firefox.desktop", True)
+
+        self.assertTrue(booted["apps"][0]["launchOnStart"])
+        self.assertFalse(state["apps"][0].get("launchOnStart", False))
 
     def test_expand_lot_opens_the_next_workspace_slip(self):
         expanded = expand_lot({"version": 1, "apps": []})

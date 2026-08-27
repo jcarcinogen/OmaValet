@@ -1,8 +1,8 @@
 # OmaValet
 
-**Park startup apps in the Omarchy workspaces where they belong.**
+**Park apps in the Omarchy workspaces where they belong.**
 
-OmaValet is a minimal, theme-aware workspace launcher for Omarchy Quattro. It shows applications by their desktop name and icon, displays existing Hyprland workspace assignments, and lets you assign startup apps without hand-editing Lua.
+OmaValet is a minimal, theme-aware workspace valet for Omarchy Quattro. It shows applications by their desktop name and icon, displays existing Hyprland workspace assignments, and lets you assign apps to workspaces without hand-editing Lua. Launch-at-login is optional and off by default.
 
 ![OmaValet on Omarchy Quattro](assets/omavalet.png)
 
@@ -15,6 +15,7 @@ OmaValet is a minimal, theme-aware workspace launcher for Omarchy Quattro. It sh
 - Click an app, then click a workspace to park it there.
 - See existing Hyprland assignments as locked, read-only entries.
 - Remove OmaValet-owned assignments with **×**.
+- Optionally launch a parked app at login with **⏻** (off by default).
 - Follow the active Omarchy theme through its native `Color`, `Style`, and `Border` tokens.
 - Generate deterministic Hyprland Lua without rewriting `autostart.lua`.
 - Back up `hyprland.lua` before adding the reversible loader block.
@@ -41,19 +42,20 @@ The plugin appears on the right side of the Omarchy bar. Click its icon to open 
 3. Click the workspace where the valet should park it. A lane can hold several apps.
 4. Use **+ Add workspace** under the lanes if you need a workspace past the five Omarchy shows by default.
 5. Remove an OmaValet assignment by clicking its **×**.
+6. Click **⏻** on a parked app if you also want it to start at login.
 
 Locked entries come from existing user-authored Hyprland rules. OmaValet shows them for context but does not overwrite or remove them.
 
 ## What OmaValet writes
 
-OmaValet does not edit `~/.config/hypr/autostart.lua`. Startup and placement are generated together in a dedicated module:
+OmaValet does not edit `~/.config/hypr/autostart.lua`. Placement is the default; login launch is opt-in:
 
 - `~/.config/omarchy/omavalet.json` — OmaValet-owned assignments
-- `~/.config/hypr/omavalet.lua` — generated `o.window(...)` and `o.launch_on_start(...)` calls
+- `~/.config/hypr/omavalet.lua` — generated `o.window(...)` rules, plus `o.launch_on_start(...)` only when **⏻** is on
 - `~/.config/hypr/hyprland.lua.omavalet.bak` — first-write backup
 - a marked `require("hypr.omavalet")` block in `~/.config/hypr/hyprland.lua`
 
-Generated applications launch at the next Hyprland session start, silently on their assigned workspace.
+Parked apps go to their workspace when you open them. They start at login only if you turn **⏻** on.
 
 ## Remove
 

@@ -362,6 +362,7 @@ def park_app(state: dict, app: dict, workspace: int) -> dict:
         "workspace": workspace,
         "enabled": True,
         "silent": True,
+        "launchOnStart": False,
     }
     apps = [
         dict(existing)
@@ -383,6 +384,17 @@ def unpark_app(state: dict, desktop_id: str) -> dict:
             if app.get("desktopId") != desktop_id
         ],
     }
+
+
+def set_launch_on_start(state: dict, desktop_id: str, enabled: bool) -> dict:
+    """Opt a parked app into or out of session autostart."""
+    apps = []
+    for app in state.get("apps", []):
+        updated = dict(app)
+        if updated.get("desktopId") == desktop_id:
+            updated["launchOnStart"] = bool(enabled)
+        apps.append(updated)
+    return {**state, "version": 1, "apps": apps}
 
 
 def expand_lot(state: dict, existing: Optional[dict] = None) -> dict:
@@ -429,7 +441,8 @@ def render_lua(state: dict) -> str:
             f"o.window({_lua_string(app['class'])}, "
             f'{{ workspace = "{workspace}{silent}" }})'
         )
-        lines.append(f"o.launch_on_start({_lua_string(app['exec'])})")
+        if app.get("launchOnStart"):
+            lines.append(f"o.launch_on_start({_lua_string(app['exec'])})")
 
     return "\n".join(lines) + "\n"
 
@@ -471,6 +484,9 @@ def main(argv=None) -> int:
     park.add_argument("workspace", type=int)
     unpark = subparsers.add_parser("unpark")
     unpark.add_argument("desktop_id")
+    boot = subparsers.add_parser("boot")
+    boot.add_argument("desktop_id")
+    boot.add_argument("enabled", choices=("on", "off"))
     args = parser.parse_args(argv)
 
     config_home = _config_home()
@@ -504,6 +520,8 @@ def main(argv=None) -> int:
             },
         )
         state = expand_lot(state, existing)
+    elif args.command == "boot":
+        state = set_launch_on_start(state, args.desktop_id, args.enabled == "on")
     else:
         state = unpark_app(state, args.desktop_id)
 

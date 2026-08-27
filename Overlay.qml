@@ -128,6 +128,7 @@ Item {
                     desktopId: String(app.desktopId || ""),
                     name: String(app.name || app.class || "App"),
                     icon: String(app.icon || ""),
+                    launchOnStart: app.launchOnStart === true,
                     source: "OmaValet"
                 })
             }
@@ -163,6 +164,16 @@ Item {
         actionProc.running = true
     }
 
+    function setBoot(desktopId, appName, enabled) {
+        if (!desktopId || actionProc.running) return
+        lastAction = "boot"
+        statusText = enabled
+            ? "Starting " + appName + " at login…"
+            : "Leaving " + appName + " parked only…"
+        actionProc.command = ["python3", scriptPath, "boot", desktopId, enabled ? "on" : "off"]
+        actionProc.running = true
+    }
+
     function addWorkspace() {
         if (workspaceCount >= 10 || actionProc.running) return
         lastAction = "expand"
@@ -175,7 +186,7 @@ Item {
         try {
             var payload = JSON.parse(String(raw || "{}"))
             applySnapshot(action ? payload.snapshot : payload)
-            if (action && lastAction !== "expand") selectedApp = null
+            if (action && lastAction !== "expand" && lastAction !== "boot") selectedApp = null
         } catch (error) {
             statusText = "The valet could not read the configuration."
         }
@@ -559,6 +570,27 @@ Item {
                                                         font.pixelSize: Style.font.caption
                                                     }
                                                     Text {
+                                                        visible: parkedChip.modelData.owned === true
+                                                        text: "⏻"
+                                                        color: parkedChip.modelData.launchOnStart ? Color.accent : root.foreground
+                                                        opacity: bootMouse.containsMouse || parkedChip.modelData.launchOnStart ? 0.95 : 0.4
+                                                        font.family: Style.font.family
+                                                        font.pixelSize: Style.font.body
+                                                        MouseArea {
+                                                            id: bootMouse
+                                                            anchors.fill: parent
+                                                            hoverEnabled: true
+                                                            onClicked: function(mouse) {
+                                                                mouse.accepted = true
+                                                                root.setBoot(
+                                                                    parkedChip.modelData.desktopId,
+                                                                    parkedChip.modelData.name,
+                                                                    !parkedChip.modelData.launchOnStart
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+                                                    Text {
                                                         text: parkedChip.modelData.owned ? "×" : "󰌾"
                                                         color: parkedChip.modelData.owned ? root.foreground : Color.accent
                                                         opacity: unparkMouse.containsMouse || !parkedChip.modelData.owned ? 0.9 : 0.45
@@ -643,7 +675,7 @@ Item {
                         Layout.fillWidth: true
                         text: root.statusText || (root.selectedApp
                             ? "Park " + root.selectedApp.name + " with + Park, or click the lane"
-                            : "Locked apps stay put. × returns OmaValet parking.")
+                            : "⏻ starts that app at login. × returns OmaValet parking.")
                         elide: Text.ElideRight
                         color: root.statusText ? Color.accent : root.foreground
                         opacity: root.statusText ? 1 : 0.5
