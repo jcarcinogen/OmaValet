@@ -12,6 +12,7 @@ from omavalet import (
     expand_lot,
     park_app,
     set_launch_on_start,
+    shrink_lot,
     unpark_app,
 )
 
@@ -43,7 +44,7 @@ class ApplyStateTest(unittest.TestCase):
                 state,
             )
             self.assertIn(
-                'o.window("firefox", { workspace = "2 silent" })',
+                'o.window("firefox", { workspace = "2" })',
                 (hypr / "omavalet.lua").read_text(),
             )
             self.assertIn(
@@ -146,6 +147,22 @@ class ApplyStateTest(unittest.TestCase):
 
         full = expand_lot({"version": 1, "workspaceCount": 10, "apps": []})
         self.assertEqual(full["workspaceCount"], 10)
+
+    def test_shrink_lot_removes_empty_extra_lane_but_keeps_five(self):
+        shrunk = shrink_lot({"version": 1, "workspaceCount": 6, "apps": []})
+        self.assertEqual(shrunk["workspaceCount"], 5)
+        floor = shrink_lot({"version": 1, "workspaceCount": 5, "apps": []})
+        self.assertEqual(floor["workspaceCount"], 5)
+
+    def test_shrink_lot_keeps_lane_that_has_a_parked_app(self):
+        kept = shrink_lot(
+            {
+                "version": 1,
+                "workspaceCount": 6,
+                "apps": [{"desktopId": "a.desktop", "workspace": 6}],
+            }
+        )
+        self.assertEqual(kept["workspaceCount"], 6)
 
     def test_cleanup_removes_only_omavalet_owned_files_and_loader(self):
         with tempfile.TemporaryDirectory() as tmp:

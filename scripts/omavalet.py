@@ -20,6 +20,16 @@ LOADER_BLOCK = (
     "-- omavalet:end\n"
 )
 DESKTOP_FIELD_CODE = re.compile(r"(?<!%)%[fFuUdDnNickvm]")
+FLATPAK_COMMAND = re.compile(r"--command=(\S+)")
+EXEC_WRAPPERS = {
+    "flatpak",
+    "env",
+    "sh",
+    "bash",
+    "uwsm-app",
+    "gtk-launch",
+    "setsid",
+}
 LAUNCH_PATTERN = re.compile(
     r'o\.(?:launch_on_start|exec_on_start)\(\s*"((?:\\.|[^"\\])*)"\s*\)'
 )
@@ -42,13 +52,30 @@ def _usable_wm_class(value: str) -> bool:
     return bool(value) and not value.startswith("@@") and "%" not in value
 
 
-def window_class_for(startup_wm_class: str, desktop_stem: str) -> str:
-    """Prefer a real WM class; keep the desktop stem as a fallback match."""
+def window_class_for(
+    startup_wm_class: str, desktop_stem: str, exec_line: str = ""
+) -> str:
+    """Build a Hyprland class match from every real identifier we can find."""
     classes = []
-    for candidate in (startup_wm_class, desktop_stem):
-        candidate = (candidate or "").strip()
-        if _usable_wm_class(candidate) and candidate not in classes:
-            classes.append(candidate)
+
+    def add(value: str) -> None:
+        value = (value or "").strip()
+        if _usable_wm_class(value) and value not in classes:
+            classes.append(value)
+
+    add(startup_wm_class)
+    add(desktop_stem)
+    if "." in (desktop_stem or ""):
+        tail = desktop_stem.rsplit(".", 1)[-1]
+        if tail.casefold() not in {"desktop", "application", "app", "org", "com", "io", "net"}:
+            add(tail)
+    for match in FLATPAK_COMMAND.finditer(exec_line or ""):
+        add(match.group(1))
+    tokens = (exec_line or "").split()
+    if tokens:
+        binary = Path(tokens[0]).name
+        if binary not in EXEC_WRAPPERS:
+            add(binary)
     if not classes:
         return desktop_stem
     if len(classes) == 1:
@@ -89,11 +116,27 @@ def desktop_catalog(directories) -> list[dict]:
                     "exec": command,
                     "icon": entry.get("Icon", "").strip(),
                     "class": window_class_for(
-                        entry.get("StartupWMClass", ""), path.stem
+                        entry.get("StartupWMClass", ""), path.stem, command
                     ),
                 }
             )
+    seen_ids = {app["desktopId"] for app in apps}
+    for extra in _omarchy_extras():
+        if extra["desktopId"] not in seen_ids:
+            apps.append(extra)
     return sorted(apps, key=lambda app: app["name"].casefold())
+
+
+def _omarchy_extras() -> list[dict]:
+    return [
+        {
+            "desktopId": "org.omarchy.agent.desktop",
+            "name": "Agent",
+            "exec": "omarchy-agent --pick",
+            "class": "org.omarchy.agent",
+            "icon": "org.omarchy.agent",
+        }
+    ]
 
 
 def _unescape_lua(value: str) -> str:
@@ -409,6 +452,25 @@ def expand_lot(state: dict, existing: Optional[dict] = None) -> dict:
     }
 
 
+def shrink_lot(state: dict, existing: Optional[dict] = None) -> dict:
+    """Remove the last extra empty lane, never going below five."""
+    current = workspace_count(state, existing)
+    occupied = 0
+    for app in (state or {}).get("apps", []):
+        workspace = _used_workspace(app.get("workspace"))
+        if workspace:
+            occupied = max(occupied, workspace)
+    for parked in (existing or {}).get("parking", []):
+        workspace = _used_workspace(parked.get("workspace"))
+        if workspace:
+            occupied = max(occupied, workspace)
+    if current <= DEFAULT_WORKSPACE_COUNT or occupied >= current:
+        new_count = max(DEFAULT_WORKSPACE_COUNT, current)
+    else:
+        new_count = max(DEFAULT_WORKSPACE_COUNT, current - 1)
+    return {**state, "version": 1, "workspaceCount": new_count}
+
+
 def _lua_string(value: str) -> str:
     escaped = (
         value.replace("\\", "\\\\")
@@ -436,13 +498,13 @@ def render_lua(state: dict) -> str:
         workspace = int(app["workspace"])
         if not 1 <= workspace <= 10:
             raise ValueError("workspace must be between 1 and 10")
-        silent = " silent" if app.get("silent", True) else ""
         lines.append(
             f"o.window({_lua_string(app['class'])}, "
-            f'{{ workspace = "{workspace}{silent}" }})'
+            f'{{ workspace = "{workspace}" }})'
         )
         if app.get("launchOnStart"):
-            lines.append(f"o.launch_on_start({_lua_string(app['exec'])})")
+            command = f"[workspace {workspace} silent] uwsm-app -- {app['exec']}"
+            lines.append(f"o.exec_on_start({_lua_string(command)})")
 
     return "\n".join(lines) + "\n"
 
@@ -479,6 +541,7 @@ def main(argv=None) -> int:
     subparsers.add_parser("snapshot")
     subparsers.add_parser("reset")
     subparsers.add_parser("expand")
+    subparsers.add_parser("shrink")
     park = subparsers.add_parser("park")
     park.add_argument("desktop_id")
     park.add_argument("workspace", type=int)
@@ -520,6 +583,16 @@ def main(argv=None) -> int:
             },
         )
         state = expand_lot(state, existing)
+    elif args.command == "shrink":
+        hypr_dir = config_home / "hypr"
+        existing = scan_existing(
+            _read_text(hypr_dir / "autostart.lua"),
+            {
+                name: _read_text(hypr_dir / name)
+                for name in ("hyprland.lua", "windows.lua")
+            },
+        )
+        state = shrink_lot(state, existing)
     elif args.command == "boot":
         state = set_launch_on_start(state, args.desktop_id, args.enabled == "on")
     else:

@@ -25,7 +25,7 @@ class RenderLuaTest(unittest.TestCase):
         )
 
         self.assertIn(
-            'o.window("firefox", { workspace = "2 silent" })', lua
+            'o.window("firefox", { workspace = "2" })', lua
         )
         self.assertNotIn("launch_on_start", lua)
         self.assertTrue(
@@ -49,8 +49,10 @@ class RenderLuaTest(unittest.TestCase):
             }
         )
 
-        self.assertIn('o.window("firefox", { workspace = "2 silent" })', lua)
-        self.assertIn('o.launch_on_start("firefox")', lua)
+        self.assertIn('o.window("firefox", { workspace = "2" })', lua)
+        self.assertIn(
+            'o.exec_on_start("[workspace 2 silent] uwsm-app -- firefox")', lua
+        )
 
     def test_rejects_workspace_outside_valet_lot(self):
         with self.assertRaisesRegex(ValueError, "workspace must be between 1 and 10"):
@@ -97,7 +99,7 @@ class RenderLuaTest(unittest.TestCase):
         )
 
         self.assertIn(
-            'o.window("app\\"class", { workspace = "1 silent" })', lua
+            'o.window("app\\"class", { workspace = "1" })', lua
         )
         self.assertNotIn("launch_on_start", lua)
 

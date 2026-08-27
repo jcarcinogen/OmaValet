@@ -11,7 +11,7 @@ OmaValet is a minimal, theme-aware workspace valet for Omarchy Quattro. It shows
 - Search installed desktop applications by name.
 - See five workspace parking lanes at a glance, matching Omarchy's default.
 - Park more than one app in the same workspace.
-- Add extra workspaces from the overlay when you need a lane that isn't shown yet.
+- Add extra workspaces from the overlay when you need a lane that isn't shown yet, and remove empty extras down to five.
 - Click an app, then click a workspace to park it there.
 - See existing Hyprland assignments as locked, read-only entries.
 - Remove OmaValet-owned assignments with **×**.

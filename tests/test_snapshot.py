@@ -50,7 +50,8 @@ class SnapshotTest(unittest.TestCase):
 
             snapshot = build_snapshot(root, [apps_dir])
 
-        self.assertEqual(snapshot["catalog"][0]["name"], "Firefox")
+        firefox = next(app for app in snapshot["catalog"] if app["name"] == "Firefox")
+        self.assertEqual(firefox["name"], "Firefox")
         self.assertEqual(snapshot["valet"][0]["workspace"], 2)
         self.assertEqual(snapshot["existing"]["parking"][0]["workspace"], 3)
         self.assertEqual(snapshot["existing"]["parking"][0]["name"], "Firefox")

@@ -182,11 +182,20 @@ Item {
         actionProc.running = true
     }
 
+    function removeWorkspace() {
+        if (workspaceCount <= 5 || actionProc.running) return
+        if (parkingForWorkspace(workspaceCount).length > 0) return
+        lastAction = "shrink"
+        statusText = "Removing extra workspace…"
+        actionProc.command = ["python3", scriptPath, "shrink"]
+        actionProc.running = true
+    }
+
     function consumeOutput(raw, action) {
         try {
             var payload = JSON.parse(String(raw || "{}"))
             applySnapshot(action ? payload.snapshot : payload)
-            if (action && lastAction !== "expand" && lastAction !== "boot") selectedApp = null
+            if (action && lastAction !== "expand" && lastAction !== "boot" && lastAction !== "shrink") selectedApp = null
         } catch (error) {
             statusText = "The valet could not read the configuration."
         }
@@ -294,7 +303,7 @@ Item {
                             font.bold: true
                         }
                         Text {
-                            text: "Park startup apps where they belong"
+                            text: "Park apps where they belong"
                             color: root.foreground
                             opacity: 0.62
                             font.family: Style.font.family
@@ -638,32 +647,67 @@ Item {
                             }
                         }
 
-                        Rectangle {
-                            id: addWorkspaceButton
-                            visible: root.workspaceCount < 10
+                        RowLayout {
                             Layout.fillWidth: true
-                            Layout.preferredHeight: Style.space(40)
-                            Layout.minimumHeight: Style.space(40)
-                            radius: root.cornerRadius
-                            color: addWorkspaceMouse.containsMouse
-                                ? Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.16)
-                                : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.05)
-                            border.width: Math.max(1, Style.space(1))
-                            border.color: Color.accent
+                            spacing: Style.spacing.sm
+                            visible: root.workspaceCount < 10 || root.workspaceCount > 5
 
-                            Text {
-                                anchors.centerIn: parent
-                                text: "+ Add workspace"
-                                color: Color.accent
-                                font.family: Style.font.family
-                                font.pixelSize: Style.font.body
+                            Rectangle {
+                                id: addWorkspaceButton
+                                visible: root.workspaceCount < 10
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: Style.space(40)
+                                Layout.minimumHeight: Style.space(40)
+                                radius: root.cornerRadius
+                                color: addWorkspaceMouse.containsMouse
+                                    ? Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.16)
+                                    : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.05)
+                                border.width: Math.max(1, Style.space(1))
+                                border.color: Color.accent
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "+ Add workspace"
+                                    color: Color.accent
+                                    font.family: Style.font.family
+                                    font.pixelSize: Style.font.body
+                                }
+
+                                MouseArea {
+                                    id: addWorkspaceMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    onClicked: root.addWorkspace()
+                                }
                             }
 
-                            MouseArea {
-                                id: addWorkspaceMouse
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                onClicked: root.addWorkspace()
+                            Rectangle {
+                                id: removeWorkspaceButton
+                                visible: root.workspaceCount > 5 && root.parkingForWorkspace(root.workspaceCount).length === 0
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: Style.space(40)
+                                Layout.minimumHeight: Style.space(40)
+                                radius: root.cornerRadius
+                                color: removeWorkspaceMouse.containsMouse
+                                    ? Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.12)
+                                    : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.05)
+                                border.width: Math.max(1, Style.space(1))
+                                border.color: root.borderColor
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "− Remove workspace"
+                                    color: root.foreground
+                                    font.family: Style.font.family
+                                    font.pixelSize: Style.font.body
+                                }
+
+                                MouseArea {
+                                    id: removeWorkspaceMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    onClicked: root.removeWorkspace()
+                                }
                             }
                         }
                     }

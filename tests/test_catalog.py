@@ -29,8 +29,9 @@ class DesktopCatalogTest(unittest.TestCase):
 
             apps = desktop_catalog([directory])
 
-        self.assertEqual(apps[0]["class"], "chromium")
-        self.assertEqual(apps[0]["exec"], "/usr/bin/chromium")
+        chromium = next(app for app in apps if app["desktopId"] == "chromium.desktop")
+        self.assertEqual(chromium["class"], "chromium")
+        self.assertEqual(chromium["exec"], "/usr/bin/chromium")
 
     def test_matches_startup_class_and_desktop_stem(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -43,10 +44,39 @@ class DesktopCatalogTest(unittest.TestCase):
 
             apps = desktop_catalog([directory])
 
-        self.assertEqual(apps[0]["exec"], "Telegram")
-        self.assertEqual(
-            apps[0]["class"], "(TelegramDesktop|org.telegram.desktop)"
+        telegram = next(
+            app for app in apps if app["desktopId"] == "org.telegram.desktop.desktop"
         )
+        self.assertEqual(telegram["exec"], "Telegram")
+        self.assertEqual(
+            telegram["class"], "(TelegramDesktop|org.telegram.desktop|Telegram)"
+        )
+
+    def test_includes_flatpak_command_as_window_class(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            (directory / "app.openbubbles.OpenBubbles.desktop").write_text(
+                "[Desktop Entry]\nName=OpenBubbles\n"
+                "Exec=/usr/bin/flatpak run --command=bluebubbles "
+                "app.openbubbles.OpenBubbles\n"
+                "StartupWMClass=openbubbles\nIcon=app.openbubbles.OpenBubbles\n",
+                encoding="utf-8",
+            )
+
+            apps = desktop_catalog([directory])
+
+        bubbles = next(
+            app for app in apps if "openbubbles" in app["desktopId"].casefold()
+        )
+        self.assertIn("bluebubbles", bubbles["class"])
+        self.assertIn("openbubbles", bubbles["class"])
+
+    def test_includes_omarchy_agent(self):
+        apps = desktop_catalog([])
+        agent = next(app for app in apps if app["desktopId"] == "org.omarchy.agent.desktop")
+        self.assertEqual(agent["name"], "Agent")
+        self.assertEqual(agent["exec"], "omarchy-agent --pick")
+        self.assertEqual(agent["class"], "org.omarchy.agent")
 
     def test_user_desktop_file_overrides_system_file(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -67,10 +97,10 @@ class DesktopCatalogTest(unittest.TestCase):
 
             apps = desktop_catalog([user_dir, system_dir])
 
-        self.assertEqual(len(apps), 1)
-        self.assertEqual(apps[0]["name"], "My Browser")
-        self.assertEqual(apps[0]["exec"], "browser --private")
-        self.assertEqual(apps[0]["class"], "(browser-private|browser)")
+        browser = next(app for app in apps if app["desktopId"] == "browser.desktop")
+        self.assertEqual(browser["name"], "My Browser")
+        self.assertEqual(browser["exec"], "browser --private")
+        self.assertEqual(browser["class"], "(browser-private|browser)")
 
     def test_hides_desktop_entries_not_intended_for_launchers(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -80,7 +110,9 @@ class DesktopCatalogTest(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            self.assertEqual(desktop_catalog([directory]), [])
+            self.assertFalse(
+                any(app["desktopId"] == "hidden.desktop" for app in desktop_catalog([directory]))
+            )
 
 
 if __name__ == "__main__":
