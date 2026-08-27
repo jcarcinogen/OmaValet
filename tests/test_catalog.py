@@ -15,6 +15,39 @@ class DesktopCatalogTest(unittest.TestCase):
             'brave --profile-directory="Default"',
         )
 
+    def test_strips_trailing_field_code_dashes_from_exec(self):
+        self.assertEqual(strip_exec("Telegram -- %U"), "Telegram")
+
+    def test_ignores_placeholder_startup_wm_class(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            (directory / "chromium.desktop").write_text(
+                "[Desktop Entry]\nName=Chromium\nExec=/usr/bin/chromium %U\n"
+                "StartupWMClass=@@startup_wm_class\nIcon=chromium\n",
+                encoding="utf-8",
+            )
+
+            apps = desktop_catalog([directory])
+
+        self.assertEqual(apps[0]["class"], "chromium")
+        self.assertEqual(apps[0]["exec"], "/usr/bin/chromium")
+
+    def test_matches_startup_class_and_desktop_stem(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            (directory / "org.telegram.desktop.desktop").write_text(
+                "[Desktop Entry]\nName=Telegram\nExec=Telegram -- %U\n"
+                "StartupWMClass=TelegramDesktop\nIcon=org.telegram.desktop\n",
+                encoding="utf-8",
+            )
+
+            apps = desktop_catalog([directory])
+
+        self.assertEqual(apps[0]["exec"], "Telegram")
+        self.assertEqual(
+            apps[0]["class"], "(TelegramDesktop|org.telegram.desktop)"
+        )
+
     def test_user_desktop_file_overrides_system_file(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -37,7 +70,7 @@ class DesktopCatalogTest(unittest.TestCase):
         self.assertEqual(len(apps), 1)
         self.assertEqual(apps[0]["name"], "My Browser")
         self.assertEqual(apps[0]["exec"], "browser --private")
-        self.assertEqual(apps[0]["class"], "browser-private")
+        self.assertEqual(apps[0]["class"], "(browser-private|browser)")
 
     def test_hides_desktop_entries_not_intended_for_launchers(self):
         with tempfile.TemporaryDirectory() as tmp:

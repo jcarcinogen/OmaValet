@@ -36,7 +36,7 @@ class ApplyStateTest(unittest.TestCase):
                 state,
             )
             self.assertIn(
-                'o.window("firefox", { workspace = "2" })',
+                'o.window("firefox", { workspace = "2 silent" })',
                 (hypr / "omavalet.lua").read_text(),
             )
             self.assertIn(
@@ -72,8 +72,8 @@ class ApplyStateTest(unittest.TestCase):
 
         self.assertEqual(len(parked["apps"]), 1)
         self.assertEqual(parked["apps"][0]["workspace"], 4)
+        self.assertTrue(parked["apps"][0]["silent"])
         self.assertTrue(parked["apps"][0]["enabled"])
-        self.assertFalse(parked["apps"][0]["silent"])
 
     def test_valet_can_return_an_app_to_the_unassigned_list(self):
         state = {

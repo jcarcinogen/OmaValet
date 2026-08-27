@@ -64,23 +64,6 @@ class RenderLuaTest(unittest.TestCase):
         )
         self.assertLess(lua.index('o.window("brave"'), lua.index('o.window("zoom"'))
 
-    def test_follows_workspace_so_launch_is_visible(self):
-        lua = render_lua(
-            {
-                "apps": [
-                    {
-                        "name": "Firefox",
-                        "class": "firefox",
-                        "exec": "firefox",
-                        "workspace": 2,
-                    }
-                ]
-            }
-        )
-
-        self.assertIn('o.window("firefox", { workspace = "2" })', lua)
-        self.assertNotIn("silent", lua)
-
     def test_escapes_quotes_and_newlines_in_lua_strings(self):
         lua = render_lua(
             {
@@ -96,7 +79,7 @@ class RenderLuaTest(unittest.TestCase):
         )
 
         self.assertIn(
-            'o.window("app\\"class", { workspace = "1" })', lua
+            'o.window("app\\"class", { workspace = "1 silent" })', lua
         )
         self.assertIn('o.launch_on_start("foo --title \\"Hi\\"\\nbar")', lua)
 

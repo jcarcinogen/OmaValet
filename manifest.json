@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "io.github.jcarcinogen.omavalet",
   "name": "OmaValet",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "author": "Scott Angel",
   "license": "MIT",
   "description": "Park startup apps in the workspaces where they belong.",

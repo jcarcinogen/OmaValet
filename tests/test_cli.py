@@ -37,21 +37,5 @@ class CliTest(unittest.TestCase):
             reload_hyprland.assert_called_once_with()
 
 
-class RevealParkingTest(unittest.TestCase):
-    def test_focuses_workspace_then_launches_the_parked_app(self):
-        calls = []
-
-        with mock.patch.object(omavalet, "_hyprctl_dispatch", calls.append):
-            omavalet.reveal_parking({"workspace": 5, "exec": "telegram"})
-
-        self.assertEqual(
-            calls,
-            [
-                'hl.dsp.focus({ workspace = "5" })',
-                'hl.dsp.exec_cmd("telegram")',
-            ],
-        )
-
-
 if __name__ == "__main__":
     unittest.main()

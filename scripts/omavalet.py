@@ -31,7 +31,29 @@ WINDOW_PATTERN = re.compile(
 
 def strip_exec(command: str) -> str:
     """Remove freedesktop field codes from a desktop Exec line."""
-    return " ".join(DESKTOP_FIELD_CODE.sub("", command).split()).strip()
+    cleaned = " ".join(DESKTOP_FIELD_CODE.sub("", command).split()).strip()
+    if cleaned.endswith(" --"):
+        cleaned = cleaned[:-3].rstrip()
+    return cleaned
+
+
+def _usable_wm_class(value: str) -> bool:
+    value = (value or "").strip()
+    return bool(value) and not value.startswith("@@") and "%" not in value
+
+
+def window_class_for(startup_wm_class: str, desktop_stem: str) -> str:
+    """Prefer a real WM class; keep the desktop stem as a fallback match."""
+    classes = []
+    for candidate in (startup_wm_class, desktop_stem):
+        candidate = (candidate or "").strip()
+        if _usable_wm_class(candidate) and candidate not in classes:
+            classes.append(candidate)
+    if not classes:
+        return desktop_stem
+    if len(classes) == 1:
+        return classes[0]
+    return "(" + "|".join(classes) + ")"
 
 
 def desktop_catalog(directories) -> list[dict]:
@@ -66,8 +88,9 @@ def desktop_catalog(directories) -> list[dict]:
                     "name": name,
                     "exec": command,
                     "icon": entry.get("Icon", "").strip(),
-                    "class": entry.get("StartupWMClass", "").strip()
-                    or path.stem,
+                    "class": window_class_for(
+                        entry.get("StartupWMClass", ""), path.stem
+                    ),
                 }
             )
     return sorted(apps, key=lambda app: app["name"].casefold())
@@ -250,9 +273,30 @@ def _write_if_changed(path: Path, content: str) -> bool:
     return True
 
 
-def apply_state(state: dict, config_home: Path) -> dict:
+def _sync_parked_apps_with_catalog(state: dict, catalog: list[dict]) -> dict:
+    """Refresh class/exec from the live desktop catalog so parking still matches."""
+    by_id = {app["desktopId"]: app for app in catalog}
+    synced = []
+    for parked in state.get("apps", []):
+        catalog_app = by_id.get(parked.get("desktopId"))
+        if catalog_app:
+            parked = {
+                **parked,
+                "class": catalog_app["class"],
+                "exec": catalog_app["exec"],
+                "name": catalog_app.get("name", parked.get("name")),
+                "icon": catalog_app.get("icon", parked.get("icon", "")),
+                "silent": True,
+            }
+        synced.append(parked)
+    return {**state, "apps": synced}
+
+
+def apply_state(state: dict, config_home: Path, catalog=None) -> dict:
     """Write OmaValet-owned state/Lua and install its reversible loader."""
     config_home = Path(config_home)
+    if catalog:
+        state = _sync_parked_apps_with_catalog(state, catalog)
     hypr_dir = config_home / "hypr"
     omarchy_dir = config_home / "omarchy"
     hyprland_path = hypr_dir / "hyprland.lua"
@@ -317,7 +361,7 @@ def park_app(state: dict, app: dict, workspace: int) -> dict:
         "icon": app.get("icon", ""),
         "workspace": workspace,
         "enabled": True,
-        "silent": False,
+        "silent": True,
     }
     apps = [
         dict(existing)
@@ -380,7 +424,7 @@ def render_lua(state: dict) -> str:
         workspace = int(app["workspace"])
         if not 1 <= workspace <= 10:
             raise ValueError("workspace must be between 1 and 10")
-        silent = " silent" if app.get("silent", False) else ""
+        silent = " silent" if app.get("silent", True) else ""
         lines.append(
             f"o.window({_lua_string(app['class'])}, "
             f'{{ workspace = "{workspace}{silent}" }})'
@@ -416,24 +460,6 @@ def _reload_hyprland() -> None:
     )
 
 
-def _hyprctl_dispatch(lua_expr: str) -> None:
-    subprocess.run(
-        ["hyprctl", "dispatch", lua_expr],
-        check=False,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-
-
-def reveal_parking(app: dict) -> None:
-    """Switch to the parking lane and launch so the user sees the app."""
-    workspace = int(app["workspace"])
-    _hyprctl_dispatch(f'hl.dsp.focus({{ workspace = "{workspace}" }})')
-    command = str(app.get("exec") or "").strip()
-    if command:
-        _hyprctl_dispatch(f"hl.dsp.exec_cmd({_lua_string(command)})")
-
-
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="OmaValet workspace parking engine")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -460,18 +486,14 @@ def main(argv=None) -> int:
         return 0
 
     state = load_state(config_home)
-    parked = None
+    catalog = desktop_catalog(directories)
     if args.command == "park":
-        catalog = desktop_catalog(directories)
         app = next(
             (item for item in catalog if item["desktopId"] == args.desktop_id), None
         )
         if app is None:
             parser.error(f"desktop app not found: {args.desktop_id}")
         state = park_app(state, app, args.workspace)
-        parked = next(
-            item for item in state["apps"] if item.get("desktopId") == args.desktop_id
-        )
     elif args.command == "expand":
         hypr_dir = config_home / "hypr"
         existing = scan_existing(
@@ -485,11 +507,9 @@ def main(argv=None) -> int:
     else:
         state = unpark_app(state, args.desktop_id)
 
-    result = apply_state(state, config_home)
+    result = apply_state(state, config_home, catalog)
     if result["changed"]:
         _reload_hyprland()
-    if parked:
-        reveal_parking(parked)
     print(json.dumps({**result, "snapshot": build_snapshot(config_home, directories)}))
     return 0
 

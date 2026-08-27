@@ -175,12 +175,7 @@ Item {
         try {
             var payload = JSON.parse(String(raw || "{}"))
             applySnapshot(action ? payload.snapshot : payload)
-            if (action && lastAction === "park") {
-                selectedApp = null
-                root.dismiss()
-            } else if (action && lastAction !== "expand") {
-                selectedApp = null
-            }
+            if (action && lastAction !== "expand") selectedApp = null
         } catch (error) {
             statusText = "The valet could not read the configuration."
         }
