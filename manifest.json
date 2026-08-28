@@ -6,9 +6,10 @@
   "author": "Scott Angel",
   "license": "MIT",
   "description": "Park and assign apps to Omarchy workspaces without editing Lua. A parked app follows its workspace when you open it. Optional login start is off by default and silent, so it does not steal the current workspace. Multiple apps per lane. Five default workspaces, extras up to 10. Existing Hyprland rules stay locked. Writes are atomic and reversible. No extra packages. No sudo or pkexec is required.",
-  "kinds": ["bar-widget"],
+  "kinds": ["bar-widget", "overlay"],
   "entryPoints": {
-    "barWidget": "BarWidget.qml"
+    "barWidget": "BarWidget.qml",
+    "overlay": "Overlay.qml"
   },
   "barWidget": {
     "displayName": "OmaValet",

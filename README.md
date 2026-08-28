@@ -39,6 +39,12 @@ omarchy plugin add https://github.com/jcarcinogen/OmaValet.git --enable
 
 The plugin appears on the right side of the Omarchy bar. Click its icon to open the parking board.
 
+The parking board is also registered as an Omarchy overlay (`entryPoints.overlay`), so it can be opened without a bar icon — useful if you'd rather keep it off the bar and reach it from a keybind or an [Omarchy menu](https://omarchy.org/manual/) entry instead:
+
+```bash
+omarchy-shell shell toggle io.github.jcarcinogen.omavalet
+```
+
 ## Use
 
 1. Open **OmaValet** from the bar.
