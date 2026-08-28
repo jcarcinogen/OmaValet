@@ -1,6 +1,6 @@
 # OmaValet
 
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/T2J625IUHY)
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/scottangel)
 
 **Park apps in the Omarchy workspaces where they belong.**
 
@@ -15,15 +15,14 @@ OmaValet is a minimal, theme-aware workspace valet for Omarchy Quattro. It shows
 - Park more than one app in the same workspace.
 - Add extra workspaces with **+ Add workspace** (up to 10), and remove empty extras with **− Remove workspace** down to five.
 - Click an app, then click a workspace (or **+ Park**) to park it there.
-- Opening a parked app switches to its workspace. **⏻** login start does not steal the current workspace.
+- Opening a parked app switches to its workspace. **⏻** login start is optional, off by default, and silent so it does not steal the current workspace.
 - See existing Hyprland assignments as locked, read-only entries.
 - Remove OmaValet-owned assignments with **×**.
-- Optionally start a parked app at login with **⏻** (off by default).
 - Press **Esc** to close (first press clears search if it has text).
 - Match real window classes from StartupWMClass, desktop id, and Flatpak `--command=` so apps land on the right workspace.
 - Follow the active Omarchy theme through its native `Color`, `Style`, and `Border` tokens.
 - Generate deterministic Hyprland Lua without rewriting `autostart.lua`.
-- Back up `hyprland.lua` before adding the reversible loader block.
+- Back up `hyprland.lua` before adding the reversible loader block. Writes are atomic and do not follow planted symlinks; reset never restores a stale backup over later edits.
 
 ## Requirements
 
