@@ -6,11 +6,13 @@ import errno
 import json
 import os
 import re
+import shlex
 import stat
 import subprocess
 import tempfile
 from pathlib import Path
 from typing import Optional
+from urllib.parse import urlsplit
 
 PLUGIN_ID = "io.github.jcarcinogen.omavalet"
 DEFAULT_WORKSPACE_COUNT = 5
@@ -65,6 +67,24 @@ def _safe_icon_name(value: str) -> str:
     return value
 
 
+def _omarchy_webapp_class(exec_line: str) -> str:
+    """Match the browser-generated app class for an Omarchy web app URL."""
+    try:
+        tokens = shlex.split(exec_line or "")
+    except ValueError:
+        return ""
+    for index, token in enumerate(tokens[:-1]):
+        if Path(token).name != "omarchy-launch-webapp":
+            continue
+        try:
+            hostname = urlsplit(tokens[index + 1]).hostname
+        except ValueError:
+            return ""
+        if hostname:
+            return rf"^.+-{re.escape(hostname.casefold())}__.*$"
+    return ""
+
+
 def window_class_for(
     startup_wm_class: str, desktop_stem: str, exec_line: str = ""
 ) -> str:
@@ -73,8 +93,9 @@ def window_class_for(
 
     def add(value: str) -> None:
         value = (value or "").strip()
-        if _usable_wm_class(value) and value not in classes:
-            classes.append(value)
+        for alias in (value, value.casefold()):
+            if _usable_wm_class(alias) and alias not in classes:
+                classes.append(alias)
 
     add(startup_wm_class)
     add(desktop_stem)
@@ -84,6 +105,7 @@ def window_class_for(
             add(tail)
     for match in FLATPAK_COMMAND.finditer(exec_line or ""):
         add(match.group(1))
+    add(_omarchy_webapp_class(exec_line))
     tokens = (exec_line or "").split()
     if tokens:
         binary = Path(tokens[0]).name

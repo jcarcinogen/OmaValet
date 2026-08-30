@@ -1,3 +1,4 @@
+import re
 import sys
 import tempfile
 import unittest
@@ -5,7 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-from omavalet import desktop_catalog, strip_exec
+from omavalet import desktop_catalog, strip_exec, window_class_for
 
 
 class DesktopCatalogTest(unittest.TestCase):
@@ -33,6 +34,26 @@ class DesktopCatalogTest(unittest.TestCase):
         self.assertEqual(chromium["class"], "chromium")
         self.assertEqual(chromium["exec"], "/usr/bin/chromium")
 
+    def test_matches_startup_class_case_insensitively(self):
+        class_pattern = window_class_for("Hermes", "hermes-desktop", "/usr/bin/hermes-desktop")
+
+        self.assertIsNotNone(re.fullmatch(class_pattern, "hermes"))
+        self.assertIsNotNone(re.fullmatch(class_pattern, "Hermes"))
+
+    def test_matches_omarchy_webapp_browser_class(self):
+        class_pattern = window_class_for(
+            "", "Grok", "omarchy-launch-webapp https://grok.com/"
+        )
+
+        self.assertIsNotNone(re.fullmatch(class_pattern, "brave-grok.com__-Default"))
+
+    def test_malformed_webapp_url_does_not_break_class_discovery(self):
+        class_pattern = window_class_for(
+            "", "Broken", "omarchy-launch-webapp 'https://[broken'"
+        )
+
+        self.assertIsNotNone(re.fullmatch(class_pattern, "Broken"))
+
     def test_matches_startup_class_and_desktop_stem(self):
         with tempfile.TemporaryDirectory() as tmp:
             directory = Path(tmp)
@@ -49,7 +70,8 @@ class DesktopCatalogTest(unittest.TestCase):
         )
         self.assertEqual(telegram["exec"], "Telegram")
         self.assertEqual(
-            telegram["class"], "(TelegramDesktop|org.telegram.desktop|Telegram)"
+            telegram["class"],
+            "(TelegramDesktop|telegramdesktop|org.telegram.desktop|Telegram|telegram)",
         )
 
     def test_includes_flatpak_command_as_window_class(self):
