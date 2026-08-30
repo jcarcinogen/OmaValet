@@ -422,6 +422,7 @@ Item {
                                     Text {
                                         Layout.fillWidth: true
                                         text: appName
+                                        textFormat: Text.PlainText
                                         elide: Text.ElideRight
                                         color: root.isSelected(desktopId) ? root.selectedText : root.foreground
                                         font.family: Style.font.family
@@ -575,6 +576,7 @@ Item {
                                                         id: chipName
                                                         Layout.fillWidth: true
                                                         text: parkedChip.modelData.name
+                                                        textFormat: Text.PlainText
                                                         elide: Text.ElideRight
                                                         color: root.foreground
                                                         font.family: Style.font.family
@@ -722,6 +724,7 @@ Item {
                         text: root.statusText || (root.selectedApp
                             ? "Park " + root.selectedApp.name + " with + Park, or click the lane"
                             : "⏻ starts that app at login. × returns OmaValet parking.")
+                        textFormat: Text.PlainText
                         elide: Text.ElideRight
                         color: root.statusText ? Color.accent : root.foreground
                         opacity: root.statusText ? 1 : 0.5
