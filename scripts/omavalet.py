@@ -20,11 +20,29 @@ MAX_WORKSPACE_COUNT = 10
 MAX_STATE_BYTES = 1_048_576
 MAX_HYPR_CONFIG_BYTES = 1_048_576
 MAX_DESKTOP_ENTRY_BYTES = 262_144
+MAX_MENU_BYTES = 1_048_576
+MAX_SHELL_CONFIG_BYTES = 1_048_576
 LOADER_REQUIRE = 'require("hypr.omavalet")'
 LOADER_BLOCK = (
     "-- omavalet:begin\n"
     f"{LOADER_REQUIRE}\n"
     "-- omavalet:end\n"
+)
+MENU_BLOCK = (
+    "\n  // omavalet:menu-begin\n"
+    '  "omavalet": {\n'
+    '    "icon": "󰓃",\n'
+    '    "label": "OmaValet",\n'
+    '    "description": "Park apps on workspaces",\n'
+    f'    "action": "omarchy-shell shell toggle {PLUGIN_ID}"\n'
+    "  },\n"
+    "  // omavalet:menu-end\n"
+)
+MENU_BLOCK_PATTERN = re.compile(
+    r"\n?^[ \t]*// omavalet:menu-begin[ \t]*\n"
+    r".*?"
+    r"^[ \t]*// omavalet:menu-end[ \t]*\n?",
+    re.MULTILINE | re.DOTALL,
 )
 DESKTOP_FIELD_CODE = re.compile(r"(?<!%)%[fFuUdDnNickvm]")
 FLATPAK_COMMAND = re.compile(r"--command=(\S+)")
@@ -410,6 +428,12 @@ def _atomic_write(path: Path, content: str) -> None:
     )
     tmp_path = Path(tmp_name)
     try:
+        try:
+            existing_mode = stat.S_IMODE(path.lstat().st_mode)
+        except FileNotFoundError:
+            existing_mode = None
+        if existing_mode is not None and not _is_symlink(path):
+            os.fchmod(fd, existing_mode)
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
             handle.write(content)
             handle.flush()
@@ -437,6 +461,123 @@ def _write_if_changed(path: Path, content: str) -> bool:
         pass
     _atomic_write(path, content)
     return True
+
+
+def install_menu_entry(menu_jsonc: str) -> str:
+    """Insert OmaValet's marked root entry without rewriting user menu content."""
+    if MENU_BLOCK in menu_jsonc or re.search(
+        r'^\s*"omavalet"\s*:', menu_jsonc, re.MULTILINE
+    ):
+        return menu_jsonc
+    offset = 0
+    opening = None
+    for line in menu_jsonc.splitlines(keepends=True):
+        stripped = line.strip()
+        if not stripped or stripped.startswith("//"):
+            offset += len(line)
+            continue
+        if stripped.startswith("{"):
+            opening = offset + line.index("{") + 1
+        break
+    if opening is None:
+        raise ValueError("Omarchy menu extension must be a JSONC object")
+    return menu_jsonc[:opening] + MENU_BLOCK + menu_jsonc[opening:]
+
+
+def remove_menu_entry(menu_jsonc: str) -> str:
+    """Remove only the command-menu block explicitly owned by OmaValet."""
+    return MENU_BLOCK_PATTERN.sub("", menu_jsonc, count=1)
+
+
+def _entry_id(entry) -> str:
+    return str(entry.get("id", "")) if isinstance(entry, dict) else str(entry)
+
+
+def configure_shell_entry(config_home: Path) -> bool:
+    """Move OmaValet from a legacy bar slot to the shell overlay list."""
+    shell_path = Path(config_home) / "omarchy" / "shell.json"
+    backup_path = shell_path.with_name("shell.json.omavalet.bak")
+    original = _read_text_nofollow(shell_path, MAX_SHELL_CONFIG_BYTES)
+    config = json.loads(original)
+    changed = False
+    bar = config.setdefault("bar", {})
+    layout = bar.setdefault("layout", {})
+    for section in ("left", "center", "right"):
+        entries = layout.setdefault(section, [])
+        kept = [entry for entry in entries if _entry_id(entry) != PLUGIN_ID]
+        if kept != entries:
+            layout[section] = kept
+            changed = True
+    plugins = config.setdefault("plugins", [])
+    if not any(_entry_id(entry) == PLUGIN_ID for entry in plugins):
+        plugins.append({"id": PLUGIN_ID})
+        changed = True
+    if changed:
+        if not _is_regular_file(backup_path):
+            _atomic_write(backup_path, original)
+        _write_if_changed(shell_path, json.dumps(config, indent=2) + "\n")
+    return changed
+
+
+def cleanup_shell_entry(config_home: Path) -> bool:
+    """Remove OmaValet references without disturbing the rest of shell.json."""
+    shell_path = Path(config_home) / "omarchy" / "shell.json"
+    if not _is_regular_file(shell_path):
+        return False
+    config = json.loads(_read_text_nofollow(shell_path, MAX_SHELL_CONFIG_BYTES))
+    changed = False
+    layout = config.get("bar", {}).get("layout", {})
+    for section in ("left", "center", "right"):
+        entries = layout.get(section, [])
+        kept = [entry for entry in entries if _entry_id(entry) != PLUGIN_ID]
+        if kept != entries:
+            layout[section] = kept
+            changed = True
+    plugins = config.get("plugins", [])
+    kept_plugins = [entry for entry in plugins if _entry_id(entry) != PLUGIN_ID]
+    if kept_plugins != plugins:
+        config["plugins"] = kept_plugins
+        changed = True
+    if changed:
+        _write_if_changed(shell_path, json.dumps(config, indent=2) + "\n")
+    return changed
+
+
+def configure_menu_entry(config_home: Path) -> dict:
+    """Enable the overlay and add its command to the user's Omarchy menu."""
+    shell_changed = configure_shell_entry(config_home)
+    menu_path = Path(config_home) / "omarchy" / "extensions" / "omarchy-menu.jsonc"
+    backup_path = menu_path.with_name("omarchy-menu.jsonc.omavalet.bak")
+    try:
+        original = _read_text_nofollow(menu_path, MAX_MENU_BYTES)
+    except FileNotFoundError:
+        original = "{\n}\n"
+    installed = install_menu_entry(original)
+    if installed != original and not _is_regular_file(backup_path):
+        _atomic_write(backup_path, original)
+    menu_changed = _write_if_changed(menu_path, installed)
+    return {
+        "changed": shell_changed or menu_changed,
+        "shellChanged": shell_changed,
+        "menuChanged": menu_changed,
+    }
+
+
+def cleanup_menu_entry(config_home: Path) -> bool:
+    """Remove OmaValet's marked menu entry and matching first-write backup."""
+    menu_path = Path(config_home) / "omarchy" / "extensions" / "omarchy-menu.jsonc"
+    backup_path = menu_path.with_name("omarchy-menu.jsonc.omavalet.bak")
+    if not _is_regular_file(menu_path):
+        return False
+    current = _read_text_nofollow(menu_path, MAX_MENU_BYTES)
+    cleaned = remove_menu_entry(current)
+    changed = _write_if_changed(menu_path, cleaned)
+    if (
+        _is_regular_file(backup_path)
+        and _read_text_nofollow(backup_path, MAX_MENU_BYTES) == cleaned
+    ):
+        changed |= _unlink_nofollow(backup_path)
+    return changed
 
 
 def _unlink_nofollow(path: Path) -> bool:
@@ -521,6 +662,9 @@ def cleanup_state(config_home: Path) -> dict:
         if _read_text_nofollow(backup_path) == cleaned:
             _unlink_nofollow(backup_path)
             changed = True
+
+    changed |= cleanup_menu_entry(config_home)
+    changed |= cleanup_shell_entry(config_home)
 
     return {"changed": changed, "backupPreserved": _is_regular_file(backup_path) or _is_symlink(backup_path)}
 
@@ -674,6 +818,7 @@ def main(argv=None) -> int:
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("snapshot")
     subparsers.add_parser("reset")
+    subparsers.add_parser("menu-install")
     subparsers.add_parser("expand")
     subparsers.add_parser("shrink")
     park = subparsers.add_parser("park")
@@ -696,6 +841,9 @@ def main(argv=None) -> int:
         if result["changed"]:
             _reload_hyprland()
         print(json.dumps(result))
+        return 0
+    if args.command == "menu-install":
+        print(json.dumps(configure_menu_entry(config_home)))
         return 0
 
     state = load_state(config_home)
