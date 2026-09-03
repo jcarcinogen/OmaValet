@@ -63,7 +63,7 @@ class CliTest(unittest.TestCase):
         self.assertTrue(installed.startswith("// user heading\n{"))
         self.assertEqual(omavalet.remove_menu_entry(edited), original)
 
-    def test_menu_install_migrates_legacy_bar_slot_to_overlay_list(self):
+    def test_menu_install_moves_bar_slot_to_overlay_list_without_losing_settings(self):
         with tempfile.TemporaryDirectory() as tmp:
             config = Path(tmp)
             shell = config / "omarchy" / "shell.json"
@@ -90,7 +90,10 @@ class CliTest(unittest.TestCase):
 
             self.assertTrue(omavalet.configure_shell_entry(config))
             migrated = json.loads(shell.read_text(encoding="utf-8"))
-            self.assertEqual(migrated["plugins"], [{"id": omavalet.PLUGIN_ID}])
+            self.assertEqual(
+                migrated["plugins"],
+                [{"id": omavalet.PLUGIN_ID, "workspaceCount": 7}],
+            )
             self.assertEqual(
                 migrated["bar"]["layout"]["right"], [{"id": "omarchy.power"}]
             )
@@ -103,6 +106,117 @@ class CliTest(unittest.TestCase):
             self.assertEqual(
                 cleaned["bar"]["layout"]["right"], [{"id": "omarchy.power"}]
             )
+
+    def test_access_toggle_moves_one_preserved_entry_between_bar_and_menu(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp)
+            omarchy_dir = config / "omarchy"
+            menu = omarchy_dir / "extensions" / "omarchy-menu.jsonc"
+            menu.parent.mkdir(parents=True)
+            menu.write_text('{\n  "personal.notes": {},\n}\n', encoding="utf-8")
+            shell = omarchy_dir / "shell.json"
+            shell.write_text(
+                json.dumps(
+                    {
+                        "plugins": [],
+                        "bar": {
+                            "layout": {
+                                "left": [{"id": "omarchy.menu"}],
+                                "center": [],
+                                "right": [
+                                    {"id": "omarchy.tray"},
+                                    {"id": omavalet.PLUGIN_ID, "custom": "keep"},
+                                    {"id": "omarchy.power"},
+                                ],
+                            }
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            menu_result = omavalet.configure_access_mode(config, "menu")
+            menu_config = json.loads(shell.read_text(encoding="utf-8"))
+
+            self.assertEqual(menu_result["accessMode"], "menu")
+            self.assertEqual(
+                menu_config["plugins"],
+                [{"id": omavalet.PLUGIN_ID, "custom": "keep"}],
+            )
+            self.assertFalse(
+                any(
+                    omavalet._entry_id(entry) == omavalet.PLUGIN_ID
+                    for entries in menu_config["bar"]["layout"].values()
+                    for entry in entries
+                )
+            )
+            self.assertIn("// omavalet:menu-begin", menu.read_text(encoding="utf-8"))
+
+            bar_result = omavalet.configure_access_mode(config, "bar")
+            bar_config = json.loads(shell.read_text(encoding="utf-8"))
+            right = bar_config["bar"]["layout"]["right"]
+
+            self.assertEqual(bar_result["accessMode"], "bar")
+            self.assertFalse(
+                any(
+                    omavalet._entry_id(entry) == omavalet.PLUGIN_ID
+                    for entry in bar_config["plugins"]
+                )
+            )
+            self.assertEqual(right[1], {"id": omavalet.PLUGIN_ID, "custom": "keep"})
+            self.assertEqual(
+                sum(
+                    omavalet._entry_id(entry) == omavalet.PLUGIN_ID
+                    for entries in bar_config["bar"]["layout"].values()
+                    for entry in entries
+                ),
+                1,
+            )
+            self.assertNotIn("omavalet:menu-begin", menu.read_text(encoding="utf-8"))
+            self.assertIn('"personal.notes"', menu.read_text(encoding="utf-8"))
+
+    def test_access_toggle_rejects_unknown_mode_without_writing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp)
+            shell = config / "omarchy" / "shell.json"
+            shell.parent.mkdir(parents=True)
+            original = json.dumps({"plugins": [], "bar": {"layout": {}}})
+            shell.write_text(original, encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "access mode"):
+                omavalet.configure_access_mode(config, "desktop")
+
+            self.assertEqual(shell.read_text(encoding="utf-8"), original)
+
+    def test_access_command_switches_to_menu_and_reports_the_mode(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp)
+            omarchy = config / "omarchy"
+            omarchy.mkdir()
+            (omarchy / "shell.json").write_text(
+                json.dumps(
+                    {
+                        "plugins": [],
+                        "bar": {
+                            "layout": {
+                                "left": [],
+                                "center": [],
+                                "right": [{"id": omavalet.PLUGIN_ID}],
+                            }
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            output = io.StringIO()
+
+            with mock.patch.dict(os.environ, {"XDG_CONFIG_HOME": tmp}), redirect_stdout(output):
+                exit_code = omavalet.main(["access", "menu"])
+
+            result = json.loads(output.getvalue())
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(result["accessMode"], "menu")
+            self.assertIn("omavalet:menu-begin", (omarchy / "extensions" / "omarchy-menu.jsonc").read_text())
 
     def test_reset_cleans_state_and_reports_backup_status(self):
         with tempfile.TemporaryDirectory() as tmp:

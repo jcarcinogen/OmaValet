@@ -60,6 +60,7 @@ class SnapshotTest(unittest.TestCase):
         self.assertEqual(snapshot["existing"]["parking"][0]["icon"], "firefox")
         self.assertEqual(snapshot["existing"]["launches"][0]["exec"], "syncthing")
         self.assertEqual(snapshot["workspaceCount"], 5)
+        self.assertEqual(snapshot["accessMode"], "bar")
 
     def test_shows_extra_lanes_when_existing_parking_uses_them(self):
         with tempfile.TemporaryDirectory() as tmp:

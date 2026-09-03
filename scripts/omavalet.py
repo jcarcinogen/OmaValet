@@ -344,6 +344,7 @@ def build_snapshot(config_home: Path, app_directories) -> dict:
         "valet": state.get("apps", []),
         "existing": existing,
         "workspaceCount": workspace_count(state, existing),
+        "accessMode": access_mode(config_home),
     }
 
 
@@ -493,30 +494,70 @@ def _entry_id(entry) -> str:
     return str(entry.get("id", "")) if isinstance(entry, dict) else str(entry)
 
 
-def configure_shell_entry(config_home: Path) -> bool:
-    """Move OmaValet from a legacy bar slot to the shell overlay list."""
+def access_mode(config_home: Path) -> str:
+    """Return the configured OmaValet access surface, defaulting to the bar."""
+    shell_path = Path(config_home) / "omarchy" / "shell.json"
+    try:
+        config = json.loads(_read_text_nofollow(shell_path, MAX_SHELL_CONFIG_BYTES))
+    except (OSError, ValueError):
+        return "bar"
+    layout = config.get("bar", {}).get("layout", {})
+    for section in ("left", "center", "right"):
+        if any(_entry_id(entry) == PLUGIN_ID for entry in layout.get(section, [])):
+            return "bar"
+    if any(_entry_id(entry) == PLUGIN_ID for entry in config.get("plugins", [])):
+        return "menu"
+    return "bar"
+
+
+def _configure_shell_access_mode(config_home: Path, mode: str) -> bool:
+    """Move OmaValet between one bar slot and the shell overlay list."""
+    if mode not in {"bar", "menu"}:
+        raise ValueError("access mode must be 'bar' or 'menu'")
     shell_path = Path(config_home) / "omarchy" / "shell.json"
     backup_path = shell_path.with_name("shell.json.omavalet.bak")
     original = _read_text_nofollow(shell_path, MAX_SHELL_CONFIG_BYTES)
     config = json.loads(original)
-    changed = False
     bar = config.setdefault("bar", {})
     layout = bar.setdefault("layout", {})
+    plugins = config.setdefault("plugins", [])
+    preserved_entry = None
+
     for section in ("left", "center", "right"):
         entries = layout.setdefault(section, [])
-        kept = [entry for entry in entries if _entry_id(entry) != PLUGIN_ID]
-        if kept != entries:
-            layout[section] = kept
-            changed = True
-    plugins = config.setdefault("plugins", [])
-    if not any(_entry_id(entry) == PLUGIN_ID for entry in plugins):
-        plugins.append({"id": PLUGIN_ID})
-        changed = True
-    if changed:
-        if not _is_regular_file(backup_path):
-            _atomic_write(backup_path, original)
-        _write_if_changed(shell_path, json.dumps(config, indent=2) + "\n")
-    return changed
+        for entry in entries:
+            if preserved_entry is None and _entry_id(entry) == PLUGIN_ID:
+                preserved_entry = dict(entry) if isinstance(entry, dict) else {"id": PLUGIN_ID}
+        layout[section] = [entry for entry in entries if _entry_id(entry) != PLUGIN_ID]
+    for entry in plugins:
+        if preserved_entry is None and _entry_id(entry) == PLUGIN_ID:
+            preserved_entry = dict(entry) if isinstance(entry, dict) else {"id": PLUGIN_ID}
+    config["plugins"] = [entry for entry in plugins if _entry_id(entry) != PLUGIN_ID]
+
+    entry = preserved_entry or {"id": PLUGIN_ID}
+    entry["id"] = PLUGIN_ID
+    if mode == "menu":
+        config["plugins"].append(entry)
+    else:
+        right = layout["right"]
+        tray_index = next(
+            (index for index, item in enumerate(right) if _entry_id(item) == "omarchy.tray"),
+            len(right) - 1,
+        )
+        right.insert(tray_index + 1, entry)
+
+    rendered = json.dumps(config, indent=2) + "\n"
+    if rendered == original:
+        return False
+    if not _is_regular_file(backup_path):
+        _atomic_write(backup_path, original)
+    _write_if_changed(shell_path, rendered)
+    return True
+
+
+def configure_shell_entry(config_home: Path) -> bool:
+    """Compatibility wrapper that configures command-menu access."""
+    return _configure_shell_access_mode(config_home, "menu")
 
 
 def cleanup_shell_entry(config_home: Path) -> bool:
@@ -543,24 +584,35 @@ def cleanup_shell_entry(config_home: Path) -> bool:
     return changed
 
 
-def configure_menu_entry(config_home: Path) -> dict:
-    """Enable the overlay and add its command to the user's Omarchy menu."""
-    shell_changed = configure_shell_entry(config_home)
+def configure_access_mode(config_home: Path, mode: str) -> dict:
+    """Select bar or command-menu access without leaving a duplicate entry."""
+    if mode not in {"bar", "menu"}:
+        raise ValueError("access mode must be 'bar' or 'menu'")
+    shell_changed = _configure_shell_access_mode(config_home, mode)
     menu_path = Path(config_home) / "omarchy" / "extensions" / "omarchy-menu.jsonc"
     backup_path = menu_path.with_name("omarchy-menu.jsonc.omavalet.bak")
-    try:
-        original = _read_text_nofollow(menu_path, MAX_MENU_BYTES)
-    except FileNotFoundError:
-        original = "{\n}\n"
-    installed = install_menu_entry(original)
-    if installed != original and not _is_regular_file(backup_path):
-        _atomic_write(backup_path, original)
-    menu_changed = _write_if_changed(menu_path, installed)
+    if mode == "menu":
+        try:
+            original = _read_text_nofollow(menu_path, MAX_MENU_BYTES)
+        except FileNotFoundError:
+            original = "{\n}\n"
+        installed = install_menu_entry(original)
+        if installed != original and not _is_regular_file(backup_path):
+            _atomic_write(backup_path, original)
+        menu_changed = _write_if_changed(menu_path, installed)
+    else:
+        menu_changed = cleanup_menu_entry(config_home)
     return {
         "changed": shell_changed or menu_changed,
         "shellChanged": shell_changed,
         "menuChanged": menu_changed,
+        "accessMode": mode,
     }
+
+
+def configure_menu_entry(config_home: Path) -> dict:
+    """Compatibility wrapper that selects command-menu access."""
+    return configure_access_mode(config_home, "menu")
 
 
 def cleanup_menu_entry(config_home: Path) -> bool:
@@ -819,6 +871,8 @@ def main(argv=None) -> int:
     subparsers.add_parser("snapshot")
     subparsers.add_parser("reset")
     subparsers.add_parser("menu-install")
+    access = subparsers.add_parser("access")
+    access.add_argument("mode", choices=("bar", "menu"))
     subparsers.add_parser("expand")
     subparsers.add_parser("shrink")
     park = subparsers.add_parser("park")
@@ -844,6 +898,9 @@ def main(argv=None) -> int:
         return 0
     if args.command == "menu-install":
         print(json.dumps(configure_menu_entry(config_home)))
+        return 0
+    if args.command == "access":
+        print(json.dumps(configure_access_mode(config_home, args.mode)))
         return 0
 
     state = load_state(config_home)

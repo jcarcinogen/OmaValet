@@ -4,13 +4,14 @@
 
 **Park apps in the Omarchy workspaces where they belong.**
 
-OmaValet is a minimal, theme-aware workspace valet for Omarchy Quattro. It opens from the Omarchy command menu—not from the bar—shows applications by their desktop name and icon, displays existing Hyprland workspace assignments, and lets you assign apps to workspaces without hand-editing Lua. Placement is the default. Launch-at-login is optional and off by default.
+OmaValet is a minimal, theme-aware workspace valet for Omarchy Quattro. It starts in the bar for quick access while you set up parking, then lets you switch between the bar and the root Omarchy command menu from inside OmaValet. It shows applications by their desktop name and icon, displays existing Hyprland workspace assignments, and lets you assign apps to workspaces without hand-editing Lua. Placement is the default. Launch-at-login is optional and off by default.
 
 ![OmaValet on Omarchy Quattro](preview.png)
 
 ## Features
 
 - Search installed desktop applications by name, including Omarchy **Agent** (`Super+Ctrl+Shift+A`).
+- Start with quick bar access, then switch between **Bar** and **Menu** with the **Open OmaValet from** toggle in OmaValet's header.
 - See five workspace parking lanes at a glance, matching Omarchy's default.
 - Park more than one app in the same workspace.
 - Add extra workspaces with **+ Add workspace** (up to 10), and remove empty extras with **− Remove workspace** down to five.
@@ -34,13 +35,12 @@ No extra packages and no second Quickshell process. No sudo or pkexec is require
 ## Install
 
 ```bash
-omarchy plugin add https://github.com/jcarcinogen/OmaValet.git --enable && \
-python3 "$HOME/.config/omarchy/plugins/io.github.jcarcinogen.omavalet/scripts/omavalet.py" menu-install
+omarchy plugin add https://github.com/jcarcinogen/OmaValet.git --enable
 ```
 
-Press **Super+Space** and choose **OmaValet** from the root Omarchy command menu. OmaValet does not add another icon to the bar.
+OmaValet appears on the right side of the Omarchy bar by default. Click its icon to open the parking board. When setup is finished, choose **Menu** under **Open OmaValet from** to remove the bar icon and add OmaValet to the root command menu at **Super+Space → OmaValet**.
 
-The command-menu entry runs:
+Switching to menu access installs this action:
 
 ```bash
 omarchy-shell shell toggle io.github.jcarcinogen.omavalet
@@ -48,13 +48,14 @@ omarchy-shell shell toggle io.github.jcarcinogen.omavalet
 
 ## Use
 
-1. Press **Super+Space** and choose **OmaValet** from the Omarchy command menu.
-2. Search for and select an application.
-3. Click the workspace where the valet should park it, or **+ Park** on a lane that already has apps.
-4. Use **+ Add workspace** under the lanes if you need a workspace past the five Omarchy shows by default. Use **− Remove workspace** to drop an empty extra lane. Five lanes always remain.
-5. Remove an OmaValet assignment by clicking its **×**.
-6. Click **⏻** on a parked app if you also want it to start at login. Login start stays on that workspace without switching away from wherever you are.
-7. Press **Esc** to close.
+1. Open **OmaValet** from its bar icon. If you previously chose menu access, press **Super+Space** and choose **OmaValet** instead.
+2. Use **Open OmaValet from → Bar / Menu** in the header whenever you want quick access or a less cluttered bar.
+3. Search for and select an application.
+4. Click the workspace where the valet should park it, or **+ Park** on a lane that already has apps.
+5. Use **+ Add workspace** under the lanes if you need a workspace past the five Omarchy shows by default. Use **− Remove workspace** to drop an empty extra lane. Five lanes always remain.
+6. Remove an OmaValet assignment by clicking its **×**.
+7. Click **⏻** on a parked app if you also want it to start at login. Login start stays on that workspace without switching away from wherever you are.
+8. Press **Esc** to close.
 
 Locked entries come from existing user-authored Hyprland rules. OmaValet shows them for context but does not overwrite or remove them.
 
@@ -63,8 +64,8 @@ Locked entries come from existing user-authored Hyprland rules. OmaValet shows t
 OmaValet does not edit `~/.config/hypr/autostart.lua`. Placement is the default; login launch is opt-in:
 
 - `~/.config/omarchy/omavalet.json` — OmaValet-owned assignments
-- a marked `OmaValet` entry in `~/.config/omarchy/extensions/omarchy-menu.jsonc`, with a first-write `omarchy-menu.jsonc.omavalet.bak`
-- a top-level overlay entry in `~/.config/omarchy/shell.json`, with a first-write `shell.json.omavalet.bak`; upgrades remove the obsolete OmaValet bar slot
+- a marked `OmaValet` entry in `~/.config/omarchy/extensions/omarchy-menu.jsonc`, with a first-write `omarchy-menu.jsonc.omavalet.bak`, while **Menu** access is selected
+- either a right-side bar entry or a top-level overlay entry in `~/.config/omarchy/shell.json`, with a first-write `shell.json.omavalet.bak`; the toggle moves the same entry instead of creating duplicates
 - `~/.config/hypr/omavalet.lua` — generated `o.window(...)` rules (follow the workspace on a normal launch). When **⏻** is on, also `o.exec_on_start("[workspace N silent] uwsm-app -- …")`
 - `~/.config/hypr/hyprland.lua.omavalet.bak` — first-write backup
 - a marked `require("hypr.omavalet")` block in `~/.config/hypr/hyprland.lua`

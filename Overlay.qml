@@ -19,6 +19,8 @@ Item {
     property var existingParking: []
     property string statusText: ""
     property string lastAction: ""
+    property string accessMode: "bar"
+    property string requestedAccessMode: ""
     property string scriptPath: String(Qt.resolvedUrl("scripts/omavalet.py")).replace("file://", "")
 
     readonly property color background: Color.menu.background
@@ -83,6 +85,8 @@ Item {
         existingParking = (snapshot.existing && snapshot.existing.parking) || []
         if (snapshot.workspaceCount)
             workspaceCount = Number(snapshot.workspaceCount)
+        if (snapshot.accessMode === "bar" || snapshot.accessMode === "menu")
+            accessMode = snapshot.accessMode
         rebuildCatalog(snapshot.catalog || [])
         statusText = ""
     }
@@ -193,6 +197,32 @@ Item {
         actionProc.running = true
     }
 
+    function setAccessMode(mode) {
+        if ((mode !== "bar" && mode !== "menu") || mode === accessMode || accessProc.running)
+            return
+        requestedAccessMode = mode
+        statusText = mode === "bar"
+            ? "Moving OmaValet to the bar…"
+            : "Moving OmaValet to the Omarchy menu…"
+        accessProc.command = ["python3", scriptPath, "access", mode]
+        accessProc.running = true
+    }
+
+    function consumeAccessOutput(raw) {
+        try {
+            var payload = JSON.parse(String(raw || "{}"))
+            if (payload.accessMode !== "bar" && payload.accessMode !== "menu")
+                throw new Error("invalid access mode")
+            accessMode = payload.accessMode
+            statusText = accessMode === "bar"
+                ? "OmaValet now opens from the bar."
+                : "OmaValet now opens from Super+Space."
+        } catch (error) {
+            statusText = "The valet could not change where it opens."
+        }
+        requestedAccessMode = ""
+    }
+
     function consumeOutput(raw, action) {
         try {
             var payload = JSON.parse(String(raw || "{}"))
@@ -218,6 +248,14 @@ Item {
         stdout: StdioCollector {
             waitForEnd: true
             onStreamFinished: root.consumeOutput(text, true)
+        }
+    }
+
+    Process {
+        id: accessProc
+        stdout: StdioCollector {
+            waitForEnd: true
+            onStreamFinished: root.consumeAccessOutput(text)
         }
     }
 
@@ -295,7 +333,6 @@ Item {
                     }
 
                     ColumnLayout {
-                        Layout.fillWidth: true
                         spacing: Style.space(1)
                         Text {
                             text: "OmaValet"
@@ -351,6 +388,99 @@ Item {
                                 opacity: 0.38
                                 visible: !searchInput.text
                                 font: searchInput.font
+                            }
+                        }
+                    }
+
+                    Item {
+                        Layout.fillWidth: true
+                    }
+
+                    ColumnLayout {
+                        Layout.minimumWidth: Style.space(180)
+                        Layout.preferredWidth: Style.space(180)
+                        Layout.maximumWidth: Style.space(180)
+                        spacing: Style.space(2)
+
+                        Text {
+                            text: "OPEN OmaValet FROM"
+                            color: root.foreground
+                            opacity: 0.5
+                            font.family: Style.font.family
+                            font.pixelSize: Style.font.caption
+                        }
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: Style.space(28)
+                            radius: root.cornerRadius
+                            color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.05)
+                            border.width: Math.max(1, Style.space(1))
+                            border.color: root.borderColor
+
+                            RowLayout {
+                                anchors.fill: parent
+                                spacing: 0
+
+                                Rectangle {
+                                    Layout.fillWidth: true
+                                    Layout.fillHeight: true
+                                    radius: root.cornerRadius
+                                    color: (root.requestedAccessMode || root.accessMode) === "bar"
+                                        ? Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.2)
+                                        : (barAccessMouse.containsMouse
+                                            ? Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.08)
+                                            : "transparent")
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "Bar"
+                                        color: (root.requestedAccessMode || root.accessMode) === "bar"
+                                            ? Color.accent : root.foreground
+                                        font.family: Style.font.family
+                                        font.pixelSize: Style.font.caption
+                                        font.bold: (root.requestedAccessMode || root.accessMode) === "bar"
+                                    }
+
+                                    MouseArea {
+                                        id: barAccessMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        enabled: !accessProc.running
+                                        cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                                        onClicked: root.setAccessMode("bar")
+                                    }
+                                }
+
+                                Rectangle {
+                                    Layout.fillWidth: true
+                                    Layout.fillHeight: true
+                                    radius: root.cornerRadius
+                                    color: (root.requestedAccessMode || root.accessMode) === "menu"
+                                        ? Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.2)
+                                        : (menuAccessMouse.containsMouse
+                                            ? Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.08)
+                                            : "transparent")
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "Menu"
+                                        color: (root.requestedAccessMode || root.accessMode) === "menu"
+                                            ? Color.accent : root.foreground
+                                        font.family: Style.font.family
+                                        font.pixelSize: Style.font.caption
+                                        font.bold: (root.requestedAccessMode || root.accessMode) === "menu"
+                                    }
+
+                                    MouseArea {
+                                        id: menuAccessMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        enabled: !accessProc.running
+                                        cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                                        onClicked: root.setAccessMode("menu")
+                                    }
+                                }
                             }
                         }
                     }
