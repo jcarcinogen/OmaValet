@@ -1,6 +1,6 @@
 # OmaValet
 
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/scottangel)
+[![Tip with X Money](tip-with-x-money.png)](https://x.com/scottito22)
 
 **Park apps in the Omarchy workspaces where they belong.**
 
