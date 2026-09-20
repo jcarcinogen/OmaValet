@@ -1,6 +1,6 @@
 # OmaValet
 
-[![Tip with X Money](tip-with-x-money.png)](https://x.com/scottito22)
+[![Tip with X Money](tip-with-x-money.svg)](https://x.com/scottito22)
 
 **Park apps in the Omarchy workspaces where they belong.**
 
