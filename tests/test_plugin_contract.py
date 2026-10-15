@@ -32,7 +32,7 @@ class PluginContractTest(unittest.TestCase):
         self.assertIn('property string accessMode: "bar"', board)
         self.assertIn('["access", mode]', board)
         self.assertIn('["python3", scriptPath].concat(args)', board)
-        self.assertIn('text: "OPEN OmaValet FROM"', board)
+        self.assertIn('text: "OPEN Workspace Pins FROM"', board)
         self.assertIn('text: "Bar"', board)
         self.assertIn('text: "Menu"', board)
         self.assertIn("value.accessMode", board)

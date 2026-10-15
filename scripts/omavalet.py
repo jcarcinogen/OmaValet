@@ -1,4 +1,4 @@
-"""OmaValet's small, testable config engine."""
+"""Workspace Pins' small, testable config engine."""
 
 import argparse
 import copy
@@ -35,12 +35,17 @@ LOADER_BLOCK = (
 MENU_BLOCK = (
     "\n  // omavalet:menu-begin\n"
     '  "omavalet": {\n'
-    '    "icon": "󰓃",\n'
-    '    "label": "OmaValet",\n'
-    '    "description": "Park apps on workspaces",\n'
+    '    "icon": "󰐃",\n'
+    '    "label": "Workspace Pins",\n'
+    '    "description": "Pin apps to workspaces",\n'
     f'    "action": "omarchy-shell shell toggle {PLUGIN_ID}"\n'
     "  },\n"
     "  // omavalet:menu-end\n"
+)
+LEGACY_MENU_BLOCK = (
+    MENU_BLOCK.replace("Workspace Pins", "OmaValet")
+    .replace("Pin apps to workspaces", "Park apps on workspaces")
+    .replace("󰐃", "󰓃")
 )
 MENU_BLOCK_PATTERN = re.compile(
     r"\n?^[ \t]*// omavalet:menu-begin[ \t]*\n"
@@ -275,9 +280,9 @@ def load_state(config_home: Path, strict: bool = False) -> dict:
         return {"version": 1, "apps": []}
     except (OSError, ValueError):
         if strict:
-            raise ValueError("OmaValet state is unreadable or corrupt; it was not overwritten.")
+            raise ValueError("Workspace Pins state is unreadable or corrupt; it was not overwritten.")
     if strict:
-        raise ValueError("OmaValet state has an invalid structure; it was not overwritten.")
+        raise ValueError("Workspace Pins state has an invalid structure; it was not overwritten.")
     return {"version": 1, "apps": []}
 
 
@@ -327,7 +332,7 @@ def _resolve_catalog_app(window_class: str, catalog: list[dict], aliases: dict):
 
 
 def build_snapshot(config_home: Path, app_directories) -> dict:
-    """Assemble the single JSON model consumed by OmaValet's overlay."""
+    """Assemble the single JSON model consumed by Workspace Pins' overlay."""
     config_home = Path(config_home)
     hypr_dir = config_home / "hypr"
     state = load_state(config_home, strict=True)
@@ -363,7 +368,7 @@ def build_snapshot(config_home: Path, app_directories) -> dict:
 
 
 def install_loader(hyprland_lua: str) -> str:
-    """Add OmaValet's marked loader after the user's autostart include."""
+    """Add Workspace Pins' marked loader after the user's autostart include."""
     if LOADER_REQUIRE in hyprland_lua:
         return hyprland_lua
     lines = hyprland_lua.splitlines(keepends=True)
@@ -376,7 +381,7 @@ def install_loader(hyprland_lua: str) -> str:
 
 
 def remove_loader(hyprland_lua: str) -> str:
-    """Remove only the block explicitly owned by OmaValet."""
+    """Remove only the block explicitly owned by Workspace Pins."""
     return hyprland_lua.replace(LOADER_BLOCK, "")
 
 
@@ -479,7 +484,9 @@ def _write_if_changed(path: Path, content: str) -> bool:
 
 
 def install_menu_entry(menu_jsonc: str) -> str:
-    """Insert OmaValet's marked root entry without rewriting user menu content."""
+    """Insert Workspace Pins' marked root entry without rewriting user menu content."""
+    if menu_jsonc.count(LEGACY_MENU_BLOCK) == 1:
+        return menu_jsonc.replace(LEGACY_MENU_BLOCK, MENU_BLOCK, 1)
     if MENU_BLOCK in menu_jsonc or re.search(
         r'^\s*"omavalet"\s*:', menu_jsonc, re.MULTILINE
     ):
@@ -500,7 +507,7 @@ def install_menu_entry(menu_jsonc: str) -> str:
 
 
 def remove_menu_entry(menu_jsonc: str) -> str:
-    """Remove only the command-menu block explicitly owned by OmaValet."""
+    """Remove only the command-menu block explicitly owned by Workspace Pins."""
     return MENU_BLOCK_PATTERN.sub("", menu_jsonc, count=1)
 
 
@@ -509,7 +516,7 @@ def _entry_id(entry) -> str:
 
 
 def access_mode(config_home: Path) -> str:
-    """Return the configured OmaValet access surface, defaulting to the bar."""
+    """Return the configured Workspace Pins access surface, defaulting to the bar."""
     shell_path = Path(config_home) / "omarchy" / "shell.json"
     try:
         config = json.loads(_read_text_nofollow(shell_path, MAX_SHELL_CONFIG_BYTES))
@@ -525,7 +532,7 @@ def access_mode(config_home: Path) -> str:
 
 
 def _configure_shell_access_mode(config_home: Path, mode: str) -> bool:
-    """Move OmaValet between one bar slot and the shell overlay list."""
+    """Move Workspace Pins between one bar slot and the shell overlay list."""
     if mode not in {"bar", "menu"}:
         raise ValueError("access mode must be 'bar' or 'menu'")
     shell_path = Path(config_home) / "omarchy" / "shell.json"
@@ -575,7 +582,7 @@ def configure_shell_entry(config_home: Path) -> bool:
 
 
 def cleanup_shell_entry(config_home: Path) -> bool:
-    """Remove OmaValet references without disturbing the rest of shell.json."""
+    """Remove Workspace Pins references without disturbing the rest of shell.json."""
     shell_path = Path(config_home) / "omarchy" / "shell.json"
     if not _is_regular_file(shell_path):
         return False
@@ -630,7 +637,7 @@ def configure_menu_entry(config_home: Path) -> dict:
 
 
 def cleanup_menu_entry(config_home: Path) -> bool:
-    """Remove OmaValet's marked menu entry and matching first-write backup."""
+    """Remove Workspace Pins' marked menu entry and matching first-write backup."""
     menu_path = Path(config_home) / "omarchy" / "extensions" / "omarchy-menu.jsonc"
     backup_path = menu_path.with_name("omarchy-menu.jsonc.omavalet.bak")
     if not _is_regular_file(menu_path):
@@ -675,7 +682,7 @@ def _sync_parked_apps_with_catalog(state: dict, catalog: list[dict]) -> dict:
 
 
 def apply_state(state: dict, config_home: Path, catalog=None) -> dict:
-    """Write OmaValet-owned state/Lua and install its reversible loader."""
+    """Write Workspace Pins-owned state/Lua and install its reversible loader."""
     config_home = Path(config_home)
     if catalog:
         state = _sync_parked_apps_with_catalog(state, catalog)
@@ -704,7 +711,7 @@ def apply_state(state: dict, config_home: Path, catalog=None) -> dict:
 
 
 def cleanup_state(config_home: Path) -> dict:
-    """Remove only OmaValet-owned state and the marked loader block."""
+    """Remove only Workspace Pins-owned state and the marked loader block."""
     config_home = Path(config_home)
     hypr_dir = config_home / "hypr"
     hyprland_path = hypr_dir / "hyprland.lua"
@@ -915,11 +922,11 @@ def state_lock(config_home: Path):
     fd = os.open(directory / "omavalet.lock", os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
     try:
         if not stat.S_ISREG(os.fstat(fd).st_mode):
-            raise ValueError("Unsafe OmaValet lock file.")
+            raise ValueError("Unsafe Workspace Pins lock file.")
         try:
             fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError as exc:
-            raise ValueError("Another OmaValet operation is running. Try again.") from exc
+            raise ValueError("Another Workspace Pins operation is running. Try again.") from exc
         yield
     finally:
         os.close(fd)
@@ -979,7 +986,7 @@ def identify_app(state: dict, desktop_id: str, address: str, expected_class: str
         except re.error as exc:
             raise ValueError("An existing rule cannot be safely compared. Resolve it manually first.") from exc
         if conflict:
-            raise ValueError("This class is already managed by " + str(other.get("source", "another OmaValet assignment")) + ".")
+            raise ValueError("This class is already managed by " + str(other.get("source", "another Workspace Pins assignment")) + ".")
     result = copy.deepcopy(state)
     for app in result["apps"]:
         if app.get("desktopId") == desktop_id:
@@ -1072,7 +1079,7 @@ def run_command(args, config_home, directories) -> tuple[dict, int]:
             if not state.get("applyPending"):
                 raise ValueError("There is no unapplied change to retry.")
             if state.get("undo") and state.get("undoExpected") != checkpoint_digest(state):
-                raise ValueError("Saved assignments changed outside OmaValet. Retry was cancelled to protect those edits.")
+                raise ValueError("Saved assignments changed outside Workspace Pins. Retry was cancelled to protect those edits.")
             action = state.get("pendingAction", "retry")
             return apply_and_report(state,config_home,directories,catalog,action,previous,reset=action=="reset")
         if command == "undo":
@@ -1120,7 +1127,7 @@ class JsonArgumentParser(argparse.ArgumentParser):
 
 
 def main(argv=None) -> int:
-    parser = JsonArgumentParser(description="OmaValet workspace parking engine")
+    parser = JsonArgumentParser(description="Workspace Pins workspace parking engine")
     subparsers = parser.add_subparsers(dest="command", required=True)
     for name in ("snapshot","reset","menu-install","expand","shrink","retry","undo","running"):
         subparsers.add_parser(name)

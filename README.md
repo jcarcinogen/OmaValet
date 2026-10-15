@@ -1,19 +1,21 @@
-# OmaValet
+# Workspace Pins
 
 [![Tip with X Money](tip-with-x-money.svg)](https://x.com/scottito22)
 
-**Your apps. Their own workspaces. No Lua.**
+**Pin apps to workspaces. No Lua required.**
 
-Keep your browser on 1, your editor on 2, and chat on 3. Choose an app and where it belongs; **newly opened windows** go there. Start apps at login only when you choose. OmaValet follows your Omarchy theme, respects existing rules, and opens from the bar or menu. No extra packages. No sudo or pkexec is required.
+Keep your browser on 1, your editor on 2, and chat on 3. Choose an app and where it belongs; **newly opened windows** go there. Start apps at login only when you choose. Workspace Pins follows your Omarchy theme, respects existing rules, and opens from the bar or menu. No extra packages. No sudo or pkexec is required.
 
-Keep your favourite workspace switcher: OmaValet decides where apps open, rather than replacing the overview. Existing windows are not moved, and this is not a session-restoration tool.
+Keep your favourite workspace switcher: Workspace Pins decides where apps open, rather than replacing the overview. Existing windows are not moved, and this is not a session-restoration tool.
 
-![OmaValet on Omarchy Quattro](preview.png)
+![Workspace Pins on Omarchy Quattro](preview.png)
+
+Workspace Pins was previously called **OmaValet**. This is the same plugin and repository: the permanent plugin ID, install URL, saved assignments, and settings paths are unchanged.
 
 ## Features
 
 - Search installed desktop applications by name, including Omarchy **Agent** (`Super+Ctrl+Shift+A`).
-- Start with quick bar access, then switch between **Bar** and **Menu** with the **Open OmaValet from** toggle in OmaValet's header.
+- Start with quick bar access, then switch between **Bar** and **Menu** with the **Open Workspace Pins from** toggle in Workspace Pins' header.
 - See five workspace parking lanes at a glance, matching Omarchy's default.
 - Park more than one app in the same workspace; see recognizable app icons in each lane, with names on hover.
 - Add extra workspaces with **+ Add workspace** (up to 10), and remove empty extras with **− Remove workspace** down to five.
@@ -24,7 +26,8 @@ Keep your favourite workspace switcher: OmaValet decides where apps open, rather
 - **Open to test** launches only when requested; single-instance apps may activate an existing window.
 - Opening a parked app switches to its workspace. **Start at login** is optional, off by default, and silent so it does not steal the current workspace.
 - See existing Hyprland assignments as locked, read-only entries.
-- Select an assigned app to change **Start at login** or **Remove** its assignment; removing never uninstalls the app.
+- A small rocket on an assigned app means **Start at login** is on; hover shows the explicit On/Off state.
+- Click a workspace or **+N more** to toggle **Start at login** directly beside an app, without leaving the pop-up. Select the app name for the other actions; removing an assignment never uninstalls the app.
 - **Esc** backs out of a dialog, clears search/selection, then closes. **Ctrl+F** returns to search.
 - A rare, silent Claudia cameo celebrates your first three applied assignments. Settings can disable celebrations or use a still image for reduced motion; double-click the logo to replay.
 - Match real window classes from StartupWMClass, desktop id, and Flatpak `--command=` so apps land on the right workspace.
@@ -34,15 +37,19 @@ Keep your favourite workspace switcher: OmaValet decides where apps open, rather
 
 ## Screenshots
 
-Actual native QML captures of v0.5.0 with fictional assignments, not a UI mockup. The header and bar use the pin glyph.
+Actual native QML captures of v0.6.0 with fictional assignments, not a UI mockup. The header and bar use the pin glyph.
 
 ### Everforest
 
-![OmaValet workspace board with the Everforest theme](examples/board-dark.png)
+![Workspace Pins workspace board with the Everforest theme](examples/board-dark.png)
 
 ### Catppuccin Latte
 
-![OmaValet workspace board with the Catppuccin Latte theme](examples/board-light.png)
+![Workspace Pins workspace board with the Catppuccin Latte theme](examples/board-light.png)
+
+### Workspace pop-up
+
+![Workspace Pins workspace pop-up with a real Start at login toggle](examples/board-login.png)
 
 ## Requirements
 
@@ -57,7 +64,9 @@ No extra packages and no second Quickshell process. No sudo or pkexec is require
 omarchy plugin add https://github.com/jcarcinogen/OmaValet.git --enable
 ```
 
-OmaValet appears on the right side of the Omarchy bar by default. Click its icon to open the parking board. When setup is finished, choose **Menu** under **Open OmaValet from** to remove the bar icon and add OmaValet to the root command menu at **Super+Space → OmaValet**.
+Workspace Pins appears on the right side of the Omarchy bar by default. Click its icon to open the parking board. When setup is finished, choose **Menu** under **Open Workspace Pins from** to remove the bar icon and add Workspace Pins to the root command menu at **Super+Space → Workspace Pins**.
+
+Upgrading from OmaValet does not move or reset any settings. If an existing command-menu entry still has the old name, switch **Bar → Menu** once to recreate the plugin-owned entry with the new label and pin icon.
 
 Switching to menu access installs this action:
 
@@ -67,8 +76,8 @@ omarchy-shell shell toggle io.github.jcarcinogen.omavalet
 
 ## Use
 
-1. Open **OmaValet** from its bar icon. If you previously chose menu access, press **Super+Space** and choose **OmaValet** instead.
-2. Use **Open OmaValet from → Bar / Menu** in the header whenever you want quick access or a less cluttered bar.
+1. Open **Workspace Pins** from its bar icon. If you previously chose menu access, press **Super+Space** and choose **Workspace Pins** instead.
+2. Use **Open Workspace Pins from → Bar / Menu** in the header whenever you want quick access or a less cluttered bar.
 3. Search for and select an application.
 4. Click a **Workspace N** button, drag the app into a lane, or press **Enter**, then the workspace number. Digits in search remain ordinary text.
 5. Extra workspaces can be added up to ten and removed only when the last extra lane is empty.
@@ -76,15 +85,15 @@ omarchy-shell shell toggle io.github.jcarcinogen.omavalet
 7. Read the result in the footer. A saved-but-not-applied change offers **Retry**; **Undo** restores the last assignment change.
 8. Press **Esc** to back out and close.
 
-Locked entries come from existing user-authored Hyprland rules. OmaValet shows them for context but does not overwrite or remove them.
+Locked entries come from existing user-authored Hyprland rules. Workspace Pins shows them for context but does not overwrite or remove them.
 
-## What OmaValet writes
+## What Workspace Pins writes
 
-OmaValet does not edit `~/.config/hypr/autostart.lua`. Placement is the default; login launch is opt-in:
+Workspace Pins does not edit `~/.config/hypr/autostart.lua`. Placement is the default; login launch is opt-in:
 
-- `~/.config/omarchy/omavalet.json` — OmaValet-owned assignments, one undo checkpoint, preferences and the one-time celebration milestone
+- `~/.config/omarchy/omavalet.json` — Workspace Pins-owned assignments, one undo checkpoint, preferences and the one-time celebration milestone
 - `~/.config/omarchy/omavalet.lock` — a regular-file lock preventing simultaneous writes
-- a marked `OmaValet` entry in `~/.config/omarchy/extensions/omarchy-menu.jsonc`, with a first-write `omarchy-menu.jsonc.omavalet.bak`, while **Menu** access is selected
+- a marked `Workspace Pins` entry in `~/.config/omarchy/extensions/omarchy-menu.jsonc`, with a first-write `omarchy-menu.jsonc.omavalet.bak`, while **Menu** access is selected
 - either a right-side bar entry or a top-level overlay entry in `~/.config/omarchy/shell.json`, with a first-write `shell.json.omavalet.bak`; the toggle moves the same entry instead of creating duplicates
 - `~/.config/hypr/omavalet.lua` — generated `o.window(...)` rules (follow the workspace on a normal launch). When **Start at login** is on, also `o.exec_on_start("[workspace N silent] uwsm-app -- …")`
 - `~/.config/hypr/hyprland.lua.omavalet.bak` — first-write backup
@@ -94,7 +103,7 @@ Parked apps go to their workspace when you open them. They start at login only i
 
 ## Remove
 
-Reset OmaValet first so its generated state and marked loader are removed safely:
+Reset Workspace Pins first so its generated state and marked loader are removed safely:
 
 ```bash
 PLUGIN_DIR="$HOME/.config/omarchy/plugins/io.github.jcarcinogen.omavalet"
@@ -102,7 +111,7 @@ python3 "$PLUGIN_DIR/scripts/omavalet.py" reset
 omarchy plugin remove io.github.jcarcinogen.omavalet
 ```
 
-If reset reports `"backupPreserved": true`, OmaValet detected that the current Hyprland configuration no longer matches its original backup. The backup is deliberately left at:
+If reset reports `"backupPreserved": true`, Workspace Pins detected that the current Hyprland configuration no longer matches its original backup. The backup is deliberately left at:
 
 ```text
 ~/.config/hypr/hyprland.lua.omavalet.bak

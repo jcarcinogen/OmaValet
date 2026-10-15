@@ -58,7 +58,7 @@ class CliTest(unittest.TestCase):
     def test_menu_entry_handles_leading_comments_and_removes_edited_owned_block(self):
         original = '// user heading\n{\n  "personal.notes": {},\n}\n'
         installed = omavalet.install_menu_entry(original)
-        edited = installed.replace('"label": "OmaValet"', '"label": "My Valet"')
+        edited = installed.replace('"label": "Workspace Pins"', '"label": "My Valet"')
 
         self.assertTrue(installed.startswith("// user heading\n{"))
         self.assertEqual(omavalet.remove_menu_entry(edited), original)

@@ -15,7 +15,7 @@ function snapshot(value) {
 }
 function assignments(value, workspace) {
     var owned = (value.valet || []).filter(function(app) { return Number(app.workspace) === workspace; })
-        .map(function(app) { return Object.assign({}, app, {owned:true, source:"OmaValet"}); });
+        .map(function(app) { return Object.assign({}, app, {owned:true, source:"Workspace Pins"}); });
     var existing = ((value.existing || {}).parking || [])
         .filter(function(app) { return Number(app.workspace) === workspace; })
         .map(function(app) { return Object.assign({}, app, {owned:false, name:String(app.name || app.class || "Existing rule")}); });

@@ -35,10 +35,10 @@ def main():
             key, _, value = line.partition('=')
             if key in {'DISPLAY', 'WAYLAND_DISPLAY', 'XDG_RUNTIME_DIR', 'DBUS_SESSION_BUS_ADDRESS'}:
                 live[key] = value
-        for theme, filename in [('everforest', 'board-dark.png'), ('catppuccin-latte', 'board-light.png')]:
+        for theme, filename in [('everforest', 'board-dark.png'), ('catppuccin-latte', 'board-light.png'), ('everforest', 'board-login.png')]:
             home = base / theme
             theme_path = home / '.local/state/omarchy/current/theme'
-            theme_path.mkdir(parents=True)
+            theme_path.mkdir(parents=True, exist_ok=True)
             for name in ('colors.toml', 'shell.toml'):
                 original = omarchy / 'themes' / theme / name
                 if original.exists():
@@ -47,7 +47,8 @@ def main():
                        XDG_DATA_HOME=str(home / '.local/share'), XDG_CACHE_HOME=str(home / '.cache'),
                        XDG_DATA_DIRS='/usr/local/share:/usr/share', XDG_RUNTIME_DIR=str(runtime),
                        QT_QPA_PLATFORM='offscreen', QT_QUICK_BACKEND='software', QT_QPA_PLATFORMTHEME='gtk3',
-                       OMAVALET_PREVIEW_OUTPUT=str(args.output_dir.resolve() / filename))
+                       OMAVALET_PREVIEW_OUTPUT=str(args.output_dir.resolve() / filename),
+                       OMAVALET_PREVIEW_EXPANDED="1" if filename == "board-login.png" else "0")
             # GTK's icon-theme bridge needs a display even while Qt renders offscreen.
             env.update(live)
             env.pop('HYPRLAND_INSTANCE_SIGNATURE', None)

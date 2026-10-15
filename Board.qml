@@ -72,7 +72,7 @@ FocusScope {
         if (value.accessMode === "bar" || value.accessMode === "menu") accessMode = value.accessMode
         if (detailRow && detailRow.owned) {
             var found = value.valet.find(function(app) { return app.desktopId === root.detailRow.desktopId })
-            detailRow = found ? Object.assign({}, found, {owned:true, source:"OmaValet"}) : null
+            detailRow = found ? Object.assign({}, found, {owned:true, source:"Workspace Pins"}) : null
         }
         return true
     }
@@ -89,7 +89,7 @@ FocusScope {
     }
     function setAccessMode(mode) {
         if (mode === accessMode || busy) return
-        requestAction(["access", mode], "Changing where OmaValet opens…")
+        requestAction(["access", mode], "Changing where Workspace Pins opens…")
     }
     function consume(text, exitCode) {
         var value = Model.parse(text)
@@ -119,7 +119,7 @@ FocusScope {
             statusText = "Choose a running window to identify this app. Window titles are not shown or saved."
         } else if (actionName === "access") {
             accessMode = value.accessMode || accessMode
-            statusText = accessMode === "menu" ? "OmaValet now opens from Super+Space → OmaValet." : "OmaValet now opens from the bar."
+            statusText = accessMode === "menu" ? "Workspace Pins now opens from Super+Space → Workspace Pins." : "Workspace Pins now opens from the bar."
         } else {
             retryAvailable = snapshot.applyPending === true
             statusText = actionLabel.replace(/…$/, ".")
@@ -220,12 +220,12 @@ FocusScope {
             ColumnLayout {
                 Layout.fillWidth: true
                 spacing: Style.space(2)
-                Text { text: "OmaValet"; color: Color.menu.text; font.family: Style.font.family; font.pixelSize: Style.font.title; font.bold: true }
-                Text { text: "Your apps. Their own workspaces. No Lua."; color: Color.menu.text; font.family: Style.font.family; font.pixelSize: Style.font.caption; textFormat: Text.PlainText }
+                Text { text: "Workspace Pins"; color: Color.menu.text; font.family: Style.font.family; font.pixelSize: Style.font.title; font.bold: true }
+                Text { text: "Pin apps to workspaces. No Lua required."; color: Color.menu.text; font.family: Style.font.family; font.pixelSize: Style.font.caption; textFormat: Text.PlainText }
             }
             ColumnLayout {
                 spacing: Style.space(2)
-                Text { text: "OPEN OmaValet FROM"; color: Color.menu.text; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                Text { text: "OPEN Workspace Pins FROM"; color: Color.menu.text; font.family: Style.font.family; font.pixelSize: Style.font.caption }
                 RowLayout {
                     spacing: Style.space(4)
                     ValetButton { objectName: "accessBar"; text: "Bar"; checked: root.accessMode === "bar"; enabled: !root.busy; onClicked: root.setAccessMode("bar") }
@@ -233,7 +233,7 @@ FocusScope {
                 }
             }
             ValetButton { objectName: "settingsButton"; text: "Settings"; onClicked: { root.settingsOpen = true; settingsClose.forceActiveFocus() } }
-            ValetButton { objectName: "closeButton"; text: "×"; hint: "Close OmaValet"; Accessible.name: "Close OmaValet"; onClicked: root.dismissed() }
+            ValetButton { objectName: "closeButton"; text: "×"; hint: "Close Workspace Pins"; Accessible.name: "Close Workspace Pins"; onClicked: root.dismissed() }
         }
         Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Color.menu.border }
         RowLayout {
@@ -394,7 +394,8 @@ FocusScope {
                                     appData: modelData
                                     board: root
                                     draggable: modelData.owned
-                                    badge: modelData.owned ? (modelData.launchOnStart ? "⏻" : "") : "🔒"
+                                    badge: modelData.owned ? (modelData.launchOnStart ? "󱓞" : "") : "🔒"
+                                    badgeDescription: modelData.owned ? "Start at login: " + (modelData.launchOnStart ? "On" : "Off") : "Existing rule (read-only)"
                                     enabled: !root.busy
                                     onPicked: root.inspect(modelData, lane.number)
                                 }
@@ -453,7 +454,7 @@ FocusScope {
                 Text {
                     visible: !!root.detailRow && root.detailRow.owned === false
                     Layout.fillWidth: true
-                    text: "🔒 Managed by " + (root.detailRow ? root.detailRow.source || "Hyprland" : "") + ". OmaValet leaves this rule unchanged."
+                    text: "🔒 Managed by " + (root.detailRow ? root.detailRow.source || "Hyprland" : "") + ". Workspace Pins leaves this rule unchanged."
                     textFormat: Text.PlainText
                     wrapMode: Text.WordWrap
                     color: Color.menu.text
@@ -553,13 +554,28 @@ FocusScope {
                 spacing: Style.space(8)
                 model: root.expandedLane > 0 ? Model.assignments(root.snapshot, root.expandedLane) : []
                 ScrollBar.vertical: ScrollBar {}
-                delegate: AppTile {
+                delegate: RowLayout {
+                    id: assignmentRow
                     required property var modelData
                     width: ListView.view.width - Style.space(12)
-                    appData: modelData
-                    draggable: false
-                    badge: modelData.owned ? (modelData.launchOnStart ? "Login on" : "Login off") : "Locked"
-                    onPicked: root.inspect(modelData, root.expandedLane)
+                    spacing: Style.space(8)
+                    AppTile {
+                        Layout.fillWidth: true
+                        appData: assignmentRow.modelData
+                        draggable: false
+                        enabled: !root.busy
+                        badge: assignmentRow.modelData.owned ? "" : "Locked"
+                        onPicked: root.inspect(assignmentRow.modelData, root.expandedLane)
+                    }
+                    ValetButton {
+                        objectName: "expandedLogin-" + (assignmentRow.modelData.desktopId || "external")
+                        visible: assignmentRow.modelData.owned === true
+                        text: "Start at login: " + (assignmentRow.modelData.launchOnStart ? "On" : "Off")
+                        checked: assignmentRow.modelData.launchOnStart === true
+                        enabled: !root.busy
+                        hint: "Launch this app silently on its workspace at your next login"
+                        onClicked: root.requestAction(["boot", assignmentRow.modelData.desktopId, assignmentRow.modelData.launchOnStart ? "off" : "on"], "Login preference saved…")
+                    }
                 }
                 Text { visible: parent.count === 0; text: "No apps assigned. Go back and choose an app first."; color: Color.menu.text; font.family: Style.font.family; font.pixelSize: Style.font.body }
             }

@@ -69,7 +69,7 @@ def main():
         def layers():
             data=json.loads(subprocess.check_output([hypr,'-j','layers'],env=live,text=True))
             return sum(1 for mon in data.values() for group in mon.get('levels',{}).values() for layer in group if layer.get('namespace')=='omavalet')
-        assert layers()==0,'Existing OmaValet overlay is open; refusing to overlap it'
+        assert layers()==0,'Existing Workspace Pins overlay is open; refusing to overlap it'
         wayland=dict(env)
         for key in ['WAYLAND_DISPLAY','DISPLAY','HYPRLAND_INSTANCE_SIGNATURE','XDG_RUNTIME_DIR','DBUS_SESSION_BUS_ADDRESS']:
             if key in live:wayland[key]=live[key]

@@ -10,6 +10,7 @@ ItemDelegate {
     property var appData: ({})
     property var board: null
     property string badge: ""
+    property string badgeDescription: ""
     property bool compact: false
     readonly property bool iconReady: appIcon.status === Image.Ready
     readonly property bool fallbackIcon: String(appIcon.source).endsWith("/application-fallback.svg")
@@ -20,9 +21,9 @@ ItemDelegate {
     implicitHeight: Style.space(46)
     focusPolicy: Qt.StrongFocus
     hoverEnabled: true
-    Accessible.name: String(appData.name || "App") + (badge ? ", " + badge : "")
-    ToolTip.visible: (hovered || mouse.containsMouse) && (compact || String(appData.name || "").length > 20)
-    ToolTip.text: String(appData.name || "")
+    Accessible.name: String(appData.name || "App") + (badgeDescription ? ", " + badgeDescription : badge ? ", " + badge : "")
+    ToolTip.visible: (hovered || mouse.containsMouse) && (compact || badgeDescription.length > 0 || String(appData.name || "").length > 20)
+    ToolTip.text: String(appData.name || "") + (badgeDescription ? "\n" + badgeDescription : "")
     ToolTip.delay: 500
     contentItem: RowLayout {
         spacing: Style.space(8)
@@ -54,6 +55,7 @@ ItemDelegate {
         }
     }
     Text {
+        objectName: "compactBadge"
         visible: tile.compact && tile.badge.length > 0
         anchors.top: parent.top
         anchors.right: parent.right

@@ -33,7 +33,7 @@ BarWidget {
         anchors.fill: parent
         bar: root.bar
         text: "󰐃"
-        tooltipText: "OmaValet — park apps"
+        tooltipText: "Workspace Pins — pin apps to workspaces"
         horizontalMargin: 7.5
         onPressed: function(buttonCode) {
             if (buttonCode === Qt.LeftButton) root.togglePanel()

@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls
 import QtTest
 import Quickshell
 import "plugin"
@@ -86,6 +87,42 @@ ShellRoot {
                     check(locked.compact && !locked.draggable,"External assignment has a locked icon tile")
                 } finally { window.width=originalWidth; wait(100) }
             }
+            function test_login_rocket_badge() {
+                var value=fixture()
+                value.valet[0].launchOnStart=true
+                board.applySnapshot(value); wait(80)
+                var tile=child("assigned-1-qa0.desktop")
+                var badge=findChild(tile,"compactBadge")
+                check(badge && badge.visible,"Enabled login shows a badge")
+                equal(badge.text,"󱓞","Badge uses rocket launch glyph")
+                equal(tile.ToolTip.text,"QA App 0\nStart at login: On","On tooltip is explicit")
+                equal(tile.Accessible.name,"QA App 0, Start at login: On","Accessible name describes state, not glyph")
+                check(badge.width>0 && badge.height>0,"Rocket has native text geometry")
+                check(badge.x>=0 && badge.x+badge.width<=tile.width,"Rocket fits its compact tile")
+                mouseMove(tile,tile.width/2,tile.height/2); wait(650)
+                check(tile.ToolTip.visible,"Hover shows startup tooltip")
+                board.applySnapshot(fixture()); wait(80)
+                tile=child("assigned-1-qa0.desktop")
+                check(!findChild(tile,"compactBadge").visible,"Disabled login has no badge")
+                equal(tile.ToolTip.text,"QA App 0\nStart at login: Off","Off tooltip is explicit")
+                var locked=child("assigned-2-locked")
+                equal(locked.badge,"🔒","External rule retains its lock")
+                equal(locked.badgeDescription,"Existing rule (read-only)","External rule does not claim ownership of login state")
+            }
+            function test_popup_login_failure_and_locked_rule() {
+                mouseClick(child("park-1"));wait(60)
+                var login=child("expandedLogin-qa0.desktop")
+                check(login.visible && login.enabled,"Popup offers real login button")
+                mouseClick(login)
+                equal(child("backendRequest").command.slice(-3),["boot","qa0.desktop","on"],"Popup dispatches exact login command")
+                tryCompare(board,"busy",false,2000)
+                check(board.hasError,"Popup reports failed save")
+                equal(board.expandedLane,1,"Popup remains open after error")
+                equal(child("expandedLogin-qa0.desktop").text,"Start at login: Off","Failed save does not claim On")
+                mouseClick(child("dialogClose"));wait(40)
+                mouseClick(child("park-2"));wait(60)
+                check(!child("expandedLogin-external").visible,"User-owned external rule has no login toggle")
+            }
             function test_drag_to_lane() {
                 var tile = child("app-qa0.desktop")
                 var lane = child("lane-2")
@@ -167,7 +204,7 @@ ShellRoot {
                 check(!board.debugState().cameoLoaded,"Finite animation unloads after timeout")
             }
             function run() {
-                var names=["search_digits","keyboard_destination","click_and_overflow","workspace_icons_at_narrow_width","drag_to_lane","ten_lanes_scroll","malformed_snapshot_and_retry","success_clears_retry","rapid_requests_are_serialized","settings_focus_and_off","reduced_motion","animation_and_teardown"]
+                var names=["search_digits","keyboard_destination","click_and_overflow","workspace_icons_at_narrow_width","login_rocket_badge","popup_login_failure_and_locked_rule","drag_to_lane","ten_lanes_scroll","malformed_snapshot_and_retry","success_clears_retry","rapid_requests_are_serialized","settings_focus_and_off","reduced_motion","animation_and_teardown"]
                 var failures=[]
                 for (var i=0;i<names.length;i++) {
                     try { reset(); tests["test_"+names[i]](); passed++; console.log("NATIVE_PASS",names[i]) }

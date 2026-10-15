@@ -1,19 +1,19 @@
 {
   "schemaVersion": 1,
   "id": "io.github.jcarcinogen.omavalet",
-  "name": "OmaValet",
-  "version": "0.5.0",
+  "name": "Workspace Pins",
+  "version": "0.6.0",
   "author": "Scott Angel",
   "license": "MIT",
-  "description": "Give every app a workspace. Keep your browser on 1, your editor on 2, and chat on 3—without editing Lua. Pick an app and workspace; newly opened windows go where they belong. Optional silent login start, keyboard and drag-and-drop assignment, undo, and window identification. Follows your Omarchy theme, respects existing rules, and opens from the bar or menu. No extra packages. No sudo or pkexec is required.",
+  "description": "Pin apps to workspaces. Keep your browser on 1, your editor on 2, and chat on 3—without editing Lua. Pick an app and workspace; newly opened windows go where they belong. Optional silent login start, keyboard and drag-and-drop assignment, undo, and window identification. Follows your Omarchy theme, respects existing rules, and opens from the bar or menu. No extra packages. No sudo or pkexec is required.",
   "kinds": ["bar-widget", "overlay"],
   "entryPoints": {
     "barWidget": "BarWidget.qml",
     "overlay": "Overlay.qml"
   },
   "barWidget": {
-    "displayName": "OmaValet",
-    "description": "Park apps on workspaces, then choose bar or Omarchy menu access.",
+    "displayName": "Workspace Pins",
+    "description": "Pin apps to workspaces, then choose bar or Omarchy menu access.",
     "category": "System",
     "allowMultiple": false,
     "defaultSection": "right"
