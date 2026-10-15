@@ -32,7 +32,7 @@ BarWidget {
         id: button
         anchors.fill: parent
         bar: root.bar
-        text: "󰓃"
+        text: "󰐃"
         tooltipText: "OmaValet — park apps"
         horizontalMargin: 7.5
         onPressed: function(buttonCode) {

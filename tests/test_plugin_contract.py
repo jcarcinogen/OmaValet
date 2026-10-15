@@ -7,6 +7,12 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class PluginContractTest(unittest.TestCase):
+    def test_header_and_bar_use_the_pin_glyph(self):
+        for filename in ("Board.qml", "BarWidget.qml"):
+            source = (ROOT / filename).read_text(encoding="utf-8")
+            self.assertIn('text: "\U000f0403"', source)
+            self.assertNotIn("\U000f04c3", source)
+
     def test_bar_widget_proxies_to_the_shell_owned_overlay(self):
         manifest = json.loads((ROOT / "manifest.json").read_text(encoding="utf-8"))
         bar_widget = (ROOT / "BarWidget.qml").read_text(encoding="utf-8")
@@ -20,14 +26,16 @@ class PluginContractTest(unittest.TestCase):
         self.assertNotIn("IpcHandler {", bar_widget)
 
     def test_overlay_exposes_bar_and_menu_access_controls(self):
+        board = (ROOT / "Board.qml").read_text(encoding="utf-8")
         overlay = (ROOT / "Overlay.qml").read_text(encoding="utf-8")
-
-        self.assertIn('property string accessMode: "bar"', overlay)
-        self.assertIn('["python3", scriptPath, "access", mode]', overlay)
-        self.assertIn('text: "OPEN OmaValet FROM"', overlay)
-        self.assertIn('text: "Bar"', overlay)
-        self.assertIn('text: "Menu"', overlay)
-        self.assertIn("snapshot.accessMode", overlay)
+        self.assertIn('source: "Board.qml"', overlay)
+        self.assertIn('property string accessMode: "bar"', board)
+        self.assertIn('["access", mode]', board)
+        self.assertIn('["python3", scriptPath].concat(args)', board)
+        self.assertIn('text: "OPEN OmaValet FROM"', board)
+        self.assertIn('text: "Bar"', board)
+        self.assertIn('text: "Menu"', board)
+        self.assertIn("value.accessMode", board)
 
 
 if __name__ == "__main__":

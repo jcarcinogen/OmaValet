@@ -1,6 +1,10 @@
 """OmaValet's small, testable config engine."""
 
 import argparse
+import copy
+import fcntl
+import hashlib
+from contextlib import contextmanager
 import configparser
 import errno
 import json
@@ -261,14 +265,19 @@ def _read_text(path: Path) -> str:
         return ""
 
 
-def load_state(config_home: Path) -> dict:
+def load_state(config_home: Path, strict: bool = False) -> dict:
     state_path = Path(config_home) / "omarchy" / "omavalet.json"
     try:
         state = json.loads(_read_text_nofollow(state_path, MAX_STATE_BYTES))
         if isinstance(state, dict) and isinstance(state.get("apps", []), list):
             return state
+    except FileNotFoundError:
+        return {"version": 1, "apps": []}
     except (OSError, ValueError):
-        pass
+        if strict:
+            raise ValueError("OmaValet state is unreadable or corrupt; it was not overwritten.")
+    if strict:
+        raise ValueError("OmaValet state has an invalid structure; it was not overwritten.")
     return {"version": 1, "apps": []}
 
 
@@ -321,7 +330,8 @@ def build_snapshot(config_home: Path, app_directories) -> dict:
     """Assemble the single JSON model consumed by OmaValet's overlay."""
     config_home = Path(config_home)
     hypr_dir = config_home / "hypr"
-    state = load_state(config_home)
+    state = load_state(config_home, strict=True)
+    validate_state(state)
     catalog = desktop_catalog(app_directories)
     existing = scan_existing(
         _read_text(hypr_dir / "autostart.lua"),
@@ -345,6 +355,10 @@ def build_snapshot(config_home: Path, app_directories) -> dict:
         "existing": existing,
         "workspaceCount": workspace_count(state, existing),
         "accessMode": access_mode(config_home),
+        "settings": state_settings(state),
+        "undoAvailable": isinstance(state.get("undo"), dict) and state.get("undoExpected") == checkpoint_digest(state),
+        "applyPending": state.get("applyPending", False),
+        "systemReducedMotion": system_reduced_motion(),
     }
 
 
@@ -650,7 +664,7 @@ def _sync_parked_apps_with_catalog(state: dict, catalog: list[dict]) -> dict:
         if catalog_app:
             parked = {
                 **parked,
-                "class": catalog_app["class"],
+                "class": parked.get("identifiedClass") or catalog_app["class"],
                 "exec": catalog_app["exec"],
                 "name": catalog_app.get("name", parked.get("name")),
                 "icon": catalog_app.get("icon", parked.get("icon", "")),
@@ -742,6 +756,12 @@ def park_app(state: dict, app: dict, workspace: int) -> dict:
         for existing in state.get("apps", [])
         if existing.get("desktopId") != app["desktopId"]
     ]
+    previous = next((item for item in state.get("apps", []) if item.get("desktopId") == app["desktopId"]), None)
+    if previous:
+        parked["launchOnStart"] = previous.get("launchOnStart", False)
+        if previous.get("identifiedClass"):
+            parked["identifiedClass"] = previous["identifiedClass"]
+            parked["class"] = previous["identifiedClass"]
     apps.append(parked)
     return {**state, "version": 1, "apps": apps}
 
@@ -856,92 +876,279 @@ def _application_dirs() -> list[Path]:
     return dirs
 
 
+def state_settings(state: dict) -> dict:
+    saved = state.get("settings", {})
+    return {"celebrations": saved.get("celebrations", True), "reducedMotion": saved.get("reducedMotion", False)}
+
+
+def validate_state(state: dict) -> None:
+    if not isinstance(state, dict) or not isinstance(state.get("apps", []), list):
+        raise ValueError("Invalid assignment state; refusing to overwrite it.")
+    if state.get("version", 1) != 1:
+        raise ValueError("Unsupported state version; refusing to overwrite it.")
+    for app in state.get("apps", []):
+        if not isinstance(app, dict) or _used_workspace(app.get("workspace")) is None:
+            raise ValueError("Invalid saved app/workspace; refusing to overwrite state.")
+        # Old state may lack desktopId, but must remain renderable.
+        if not all(isinstance(app.get(key), str) for key in ("name", "class", "exec")):
+            raise ValueError("Invalid saved app identity; refusing to overwrite state.")
+    settings = state.get("settings", {})
+    if not isinstance(settings, dict) or any(type(settings.get(k, d)) is not bool for k,d in (("celebrations",True),("reducedMotion",False))):
+        raise ValueError("Invalid saved preferences; refusing to overwrite state.")
+
+
+def system_reduced_motion() -> bool:
+    if not os.environ.get("HYPRLAND_INSTANCE_SIGNATURE"):
+        return False
+    try:
+        result = subprocess.run(["hyprctl", "-j", "getoption", "animations:enabled"], capture_output=True, text=True, timeout=2)
+        value = json.loads(result.stdout)
+        return result.returncode == 0 and value.get("int") == 0
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        return False
+
+
+@contextmanager
+def state_lock(config_home: Path):
+    directory = config_home / "omarchy"
+    directory.mkdir(parents=True, exist_ok=True)
+    fd = os.open(directory / "omavalet.lock", os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            raise ValueError("Unsafe OmaValet lock file.")
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as exc:
+            raise ValueError("Another OmaValet operation is running. Try again.") from exc
+        yield
+    finally:
+        os.close(fd)
+
+
+def save_state(state: dict, config_home: Path) -> None:
+    validate_state(state)
+    payload = json.dumps(state, indent=2) + "\n"
+    if len(payload.encode()) > MAX_STATE_BYTES:
+        raise ValueError("State plus Undo exceeds the safe size limit.")
+    _atomic_write(config_home / "omarchy" / "omavalet.json", payload)
+
+
+def _hypr_command(args: list[str]) -> str:
+    result = subprocess.run(["hyprctl", *args], capture_output=True, text=True, timeout=5)
+    if result.returncode:
+        raise RuntimeError((result.stderr or result.stdout or "Hyprland command failed").strip()[:500])
+    return result.stdout.strip()
+
+
 def _reload_hyprland() -> None:
-    subprocess.run(
-        ["hyprctl", "reload"],
-        check=False,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
+    _hypr_command(["reload"])
+    errors = _hypr_command(["configerrors"])
+    if errors and errors != "[]":
+        raise RuntimeError("Hyprland reports configuration errors: " + errors[:400])
+
+
+def running_windows() -> list[dict]:
+    clients = json.loads(_hypr_command(["-j", "clients"]))
+    if not isinstance(clients, list):
+        raise ValueError("Hyprland returned an invalid window list.")
+    windows = []
+    for client in clients:
+        if not isinstance(client, dict):
+            continue
+        address, cls = client.get("address"), client.get("class")
+        if (isinstance(address, str) and re.fullmatch(r"0x[0-9a-fA-F]+", address)
+                and isinstance(cls, str) and 0 < len(cls) <= 256
+                and not any(ord(c) < 32 for c in cls)):
+            # Never collect or return title/initialTitle.
+            windows.append({"address": address, "class": cls, "name": cls})
+    return windows
+
+
+def identify_app(state: dict, desktop_id: str, address: str, expected_class: str, existing: dict) -> dict:
+    target = next((app for app in state["apps"] if app.get("desktopId") == desktop_id), None)
+    if not target:
+        raise ValueError("Assign this app before identifying its window.")
+    window = next((item for item in running_windows() if item["address"] == address), None)
+    if not window or window["class"] != expected_class:
+        raise ValueError("The window closed or changed identity. Reopen the window picker.")
+    cls = window["class"]
+    others = existing["parking"] + [app for app in state["apps"] if app.get("desktopId") != desktop_id]
+    for other in others:
+        try:
+            conflict = re.fullmatch(other["class"], cls) is not None
+        except re.error as exc:
+            raise ValueError("An existing rule cannot be safely compared. Resolve it manually first.") from exc
+        if conflict:
+            raise ValueError("This class is already managed by " + str(other.get("source", "another OmaValet assignment")) + ".")
+    result = copy.deepcopy(state)
+    for app in result["apps"]:
+        if app.get("desktopId") == desktop_id:
+            app["class"] = app["identifiedClass"] = "^" + re.escape(cls) + "$"
+    return result
+
+
+def checkpoint(state: dict) -> dict:
+    return {"apps": copy.deepcopy(state.get("apps", [])), "workspaceCount": state.get("workspaceCount", 5)}
+
+
+def checkpoint_digest(state: dict) -> str:
+    return hashlib.sha256(json.dumps(checkpoint(state), sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def apply_and_report(state: dict, config_home: Path, directories, catalog, action: str, previous: dict, reset=False) -> tuple[dict, int]:
+    # Validate and render before any write. Metadata never participates in Lua.
+    validate_state(state)
+    state = _sync_parked_apps_with_catalog(state, catalog)
+    if isinstance(state.get("undo"), dict):
+        state["undoExpected"] = checkpoint_digest(state)
+    else:
+        state.pop("undoExpected", None)
+    render_lua(state)
+    state["applyPending"] = True
+    state["pendingAction"] = action
+    if len((json.dumps(state, indent=2) + "\n").encode()) > MAX_STATE_BYTES:
+        raise ValueError("State plus Undo exceeds the safe size limit.")
+    result = {}
+    saved = False
+    try:
+        if reset:
+            result = cleanup_state(config_home)
+            save_state(state, config_home)
+        else:
+            result = apply_state(state, config_home)
+        saved = True
+        _reload_hyprland()
+        state["applyPending"] = False
+        state.pop("pendingAction", None)
+        celebrate = (action == "park" and len(state["apps"]) >= 3
+                     and not state.get("celebratedThree", False)
+                     and state_settings(state)["celebrations"])
+        if celebrate:
+            state["celebratedThree"] = True
+        save_state(state, config_home)
+        return {**result, "ok": True, "saved": True, "applied": True, "error": None,
+                "snapshot": build_snapshot(config_home, directories), "celebrate": celebrate}, 0
+    except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired) as exc:
+        # apply_state can have written JSON before a later file write fails.
+        persisted = load_state(config_home, strict=True)
+        saved = saved or persisted.get("applyPending", False)
+        return {**result, "ok": False, "saved": bool(saved), "applied": False,
+                "error": ("Saved but not applied. " if saved else "Not saved. ") + str(exc)[:400],
+                "snapshot": build_snapshot(config_home, directories), "celebrate": False}, 1
+
+
+def run_command(args, config_home, directories) -> tuple[dict, int]:
+    command = args.command
+    if command == "snapshot":
+        return build_snapshot(config_home, directories), 0
+    if command == "running":
+        return {"ok": True, "windows": running_windows()}, 0
+    with state_lock(config_home):
+        state = load_state(config_home, strict=True)
+        validate_state(state)
+        if command in {"access", "menu-install"}:
+            result = configure_access_mode(config_home, args.mode if command == "access" else "menu")
+            return {**result, "ok": True, "saved": True, "applied": True, "error": None, "celebrate": False}, 0
+        if command == "settings":
+            settings = state_settings(state)
+            settings[{"celebrations":"celebrations", "reduced-motion":"reducedMotion"}[args.setting]] = args.enabled == "on"
+            state["settings"] = settings
+            save_state(state, config_home)
+            return {"ok":True,"saved":True,"applied":True,"error":None,"celebrate":False,"snapshot":build_snapshot(config_home,directories)}, 0
+        catalog = desktop_catalog(directories)
+        if command == "test-launch":
+            app = next((app for app in catalog if app["desktopId"] == args.desktop_id), None)
+            if not app:
+                raise ValueError("Desktop app no longer exists.")
+            argv = shlex.split(app["exec"])
+            if not argv:
+                raise ValueError("App has no launch command.")
+            subprocess.Popen(["uwsm-app", "--", *argv], stdin=subprocess.DEVNULL,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+            return {"ok":True,"saved":False,"applied":False,"error":None,"celebrate":False}, 0
+        previous = copy.deepcopy(state)
+        existing = build_snapshot(config_home, directories)["existing"]
+        if command == "retry":
+            if not state.get("applyPending"):
+                raise ValueError("There is no unapplied change to retry.")
+            if state.get("undo") and state.get("undoExpected") != checkpoint_digest(state):
+                raise ValueError("Saved assignments changed outside OmaValet. Retry was cancelled to protect those edits.")
+            action = state.get("pendingAction", "retry")
+            return apply_and_report(state,config_home,directories,catalog,action,previous,reset=action=="reset")
+        if command == "undo":
+            undo = state.get("undo")
+            if not isinstance(undo, dict):
+                raise ValueError("There is no change to undo.")
+            if state.get("undoExpected") != checkpoint_digest(state):
+                raise ValueError("Assignments changed since the last operation. Undo was cancelled to protect those edits.")
+            if set(undo) != {"apps", "workspaceCount"}:
+                raise ValueError("Invalid Undo checkpoint; no files changed.")
+            state.update(copy.deepcopy(undo))
+            state.pop("undo", None)
+        elif command == "park":
+            app = next((app for app in catalog if app["desktopId"] == args.desktop_id), None)
+            if not app:
+                raise ValueError("Desktop app not found: " + args.desktop_id)
+            state = park_app(state,app,args.workspace)
+        elif command == "expand":
+            state = expand_lot(state,existing)
+        elif command == "shrink":
+            state = shrink_lot(state,existing)
+        elif command == "reset":
+            state["apps"] = []
+            state["workspaceCount"] = 5
+        else:
+            if not any(app.get("desktopId") == args.desktop_id for app in state["apps"]):
+                raise ValueError("That assignment no longer exists.")
+            if command == "boot":
+                state = set_launch_on_start(state,args.desktop_id,args.enabled=="on")
+            elif command == "unpark":
+                state = unpark_app(state,args.desktop_id)
+            elif command == "identify":
+                state = identify_app(state,args.desktop_id,args.address,args.expected_class,existing)
+        if command != "undo":
+            if checkpoint(state) == checkpoint(previous) and command != "reset":
+                pending = state.get("applyPending", False)
+                return {"ok":not pending,"saved":True,"applied":not pending,"error":"Saved assignments still need Retry." if pending else None,"celebrate":False,"snapshot":build_snapshot(config_home,directories)}, 1 if pending else 0
+            state["undo"] = checkpoint(previous)
+        return apply_and_report(state,config_home,directories,catalog,command,previous,reset=command=="reset")
+
+
+class JsonArgumentParser(argparse.ArgumentParser):
+    def error(self, message):
+        raise ValueError(message)
 
 
 def main(argv=None) -> int:
-    parser = argparse.ArgumentParser(description="OmaValet workspace parking engine")
+    parser = JsonArgumentParser(description="OmaValet workspace parking engine")
     subparsers = parser.add_subparsers(dest="command", required=True)
-    subparsers.add_parser("snapshot")
-    subparsers.add_parser("reset")
-    subparsers.add_parser("menu-install")
+    for name in ("snapshot","reset","menu-install","expand","shrink","retry","undo","running"):
+        subparsers.add_parser(name)
     access = subparsers.add_parser("access")
-    access.add_argument("mode", choices=("bar", "menu"))
-    subparsers.add_parser("expand")
-    subparsers.add_parser("shrink")
+    access.add_argument("mode",choices=("bar","menu"))
     park = subparsers.add_parser("park")
     park.add_argument("desktop_id")
-    park.add_argument("workspace", type=int)
-    unpark = subparsers.add_parser("unpark")
-    unpark.add_argument("desktop_id")
+    park.add_argument("workspace",type=int)
+    for name in ("unpark","test-launch"):
+        subparsers.add_parser(name).add_argument("desktop_id")
     boot = subparsers.add_parser("boot")
     boot.add_argument("desktop_id")
-    boot.add_argument("enabled", choices=("on", "off"))
-    args = parser.parse_args(argv)
-
-    config_home = _config_home()
-    directories = _application_dirs()
-    if args.command == "snapshot":
-        print(json.dumps(build_snapshot(config_home, directories)))
-        return 0
-    if args.command == "reset":
-        result = cleanup_state(config_home)
-        if result["changed"]:
-            _reload_hyprland()
-        print(json.dumps(result))
-        return 0
-    if args.command == "menu-install":
-        print(json.dumps(configure_menu_entry(config_home)))
-        return 0
-    if args.command == "access":
-        print(json.dumps(configure_access_mode(config_home, args.mode)))
-        return 0
-
-    state = load_state(config_home)
-    catalog = desktop_catalog(directories)
-    if args.command == "park":
-        app = next(
-            (item for item in catalog if item["desktopId"] == args.desktop_id), None
-        )
-        if app is None:
-            parser.error(f"desktop app not found: {args.desktop_id}")
-        state = park_app(state, app, args.workspace)
-    elif args.command == "expand":
-        hypr_dir = config_home / "hypr"
-        existing = scan_existing(
-            _read_text(hypr_dir / "autostart.lua"),
-            {
-                name: _read_text(hypr_dir / name)
-                for name in ("hyprland.lua", "windows.lua")
-            },
-        )
-        state = expand_lot(state, existing)
-    elif args.command == "shrink":
-        hypr_dir = config_home / "hypr"
-        existing = scan_existing(
-            _read_text(hypr_dir / "autostart.lua"),
-            {
-                name: _read_text(hypr_dir / name)
-                for name in ("hyprland.lua", "windows.lua")
-            },
-        )
-        state = shrink_lot(state, existing)
-    elif args.command == "boot":
-        state = set_launch_on_start(state, args.desktop_id, args.enabled == "on")
-    else:
-        state = unpark_app(state, args.desktop_id)
-
-    result = apply_state(state, config_home, catalog)
-    if result["changed"]:
-        _reload_hyprland()
-    print(json.dumps({**result, "snapshot": build_snapshot(config_home, directories)}))
-    return 0
+    boot.add_argument("enabled",choices=("on","off"))
+    identify = subparsers.add_parser("identify")
+    identify.add_argument("desktop_id")
+    identify.add_argument("address")
+    identify.add_argument("expected_class")
+    settings = subparsers.add_parser("settings")
+    settings.add_argument("setting",choices=("celebrations","reduced-motion"))
+    settings.add_argument("enabled",choices=("on","off"))
+    try:
+        args = parser.parse_args(argv)
+        result, code = run_command(args, _config_home(), _application_dirs())
+    except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired) as exc:
+        result = {"ok":False,"saved":False,"applied":False,"error":str(exc)[:500],"celebrate":False}
+        code = 1
+    print(json.dumps(result))
+    return code
 
 
 if __name__ == "__main__":
