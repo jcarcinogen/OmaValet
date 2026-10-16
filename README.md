@@ -55,6 +55,7 @@ Actual native QML captures of v0.6.0 with fictional assignments, not a UI mockup
 
 - Omarchy Quattro (Omarchy 4)
 - Python 3 (standard library only)
+- Search paste uses Omarchy's existing `wl-paste` (`wl-clipboard`); if unavailable, typing still works and paste reports an error.
 
 No extra packages and no second Quickshell process. No sudo or pkexec is required. Installing the plugin does not write Hyprland config; parking an app does, and only after you click.
 
@@ -86,6 +87,14 @@ omarchy-shell shell toggle io.github.jcarcinogen.omavalet
 8. Press **Esc** to back out and close.
 
 Locked entries come from existing user-authored Hyprland rules. Workspace Pins shows them for context but does not overwrite or remove them.
+
+## Clipboard handling (0.6.1)
+
+The search box uses a plain-text `TextEdit`, avoiding the automatic clipboard-payload reads of editable `TextField`/`TextInput` on affected Qt versions (QTBUG-149610). It retains native typing, selection and input-method composition rather than implementing a manual key editor.
+
+**Ctrl+V** and **Shift+Insert** explicitly request paste through a separate Python helper. It accepts at most 4 KiB from `wl-paste` (one extra byte detects oversize) under a 1.5-second overall deadline, rejects oversized/invalid/failed transfers, and kills and reaps the child on failure. On Linux, a parent-death signal also kills the reader if the shell destroys its helper while a paste is pending. Search is limited to 256 UTF-16 code units; whitespace is flattened to one line. Moving the caret, editing, losing focus or closing the board invalidates an outstanding paste. Middle-click primary-selection paste, right-click paste menus and external text drops are intentionally unsupported; dragging app tiles to workspaces still works.
+
+This removes this plugin's clipboard trigger; it does not patch Qt or other fields in the shared Omarchy shell. The existing screenshots show the 0.6.0 layout, retained in 0.6.1.
 
 ## What Workspace Pins writes
 

@@ -46,6 +46,85 @@ ShellRoot {
                 keyClick(Qt.Key_Escape)
                 equal(search.text,"","Escape clears search")
             }
+            function pasteField(helper) {
+                var search = child("appSearch")
+                search.helperPath = Quickshell.env("OMAVALET_TEST_OUTPUT") + "/" + helper
+                search.forceActiveFocus()
+                return search
+            }
+            function test_search_native_editing() {
+                var search=pasteField("paste-ok.py")
+                keyClick(Qt.Key_A); keyClick(Qt.Key_B); keyClick(Qt.Key_Left); keyClick(Qt.Key_Delete)
+                equal(search.text,"a","Native editing and Delete")
+                keyClick(Qt.Key_A,Qt.ControlModifier); keyClick(Qt.Key_C)
+                equal(search.text,"c","Native select-all replacement")
+                keyClick(Qt.Key_Backspace);equal(search.text,"","Native Backspace")
+                search.text="café 日本語 <b>x</b>";equal(search.textFormat,TextEdit.PlainText,"Markup cannot become rich text")
+                equal(search.text,"café 日本語 <b>x</b>","Unicode retained")
+                search.text="x\ny\tz";equal(search.text,"x y z","Search remains single-line")
+                search.text="x".repeat(257);equal(search.text.length,256,"Typed/programmatic text cap")
+                search.cursorPosition=256;wait(30)
+                var editor=findChild(search,"searchEditor"), viewport=findChild(search,"searchViewport")
+                var caret=editor.mapToItem(viewport,editor.cursorRectangle.x,0)
+                check(caret.x>=0 && caret.x<=viewport.width,"Long search keeps caret visible")
+                keyClick(Qt.Key_Home);wait(30)
+                caret=editor.mapToItem(viewport,editor.cursorRectangle.x,0)
+                check(caret.x>=0 && caret.x<=viewport.width,"Home scrolls caret back into view")
+                keyClick(Qt.Key_F,Qt.ControlModifier);check(search.activeFocus,"Ctrl+F focuses search")
+            }
+            function test_paste_shortcuts_and_selection() {
+                var search=pasteField("paste-ok.py")
+                search.text="replace";search.selectAll()
+                keyClick(Qt.Key_V,Qt.ControlModifier)
+                check(search.pastePending,"Ctrl+V starts isolated helper")
+                tryCompare(search,"pastePending",false,2000);wait(20)
+                equal(search.text,"QA","Paste replaces selection")
+                search.clear();keyClick(Qt.Key_Insert,Qt.ShiftModifier)
+                check(search.pastePending,"Shift+Insert starts helper")
+                tryCompare(search,"pastePending",false,2000);wait(20)
+                equal(search.text,"QA","Shift+Insert inserts bounded result")
+            }
+            function test_paste_stale_edit_and_cursor() {
+                var search=pasteField("paste-slow.py")
+                keyClick(Qt.Key_V,Qt.ControlModifier);keyClick(Qt.Key_Z)
+                tryCompare(search,"pastePending",false,2000);wait(20)
+                equal(search.text,"z","Typing invalidates pending paste")
+                search.text="abc";search.cursorPosition=3
+                keyClick(Qt.Key_V,Qt.ControlModifier);keyClick(Qt.Key_Left)
+                tryCompare(search,"pastePending",false,2000);wait(20)
+                equal(search.text,"abc","Moving cursor invalidates pending paste")
+            }
+            function test_paste_stale_close_and_focus() {
+                var search=pasteField("paste-slow.py")
+                keyClick(Qt.Key_V,Qt.ControlModifier);board.close();board.active=true
+                tryCompare(search,"pastePending",false,2000);wait(20)
+                equal(search.text,"","Close/reopen invalidates pending paste")
+                search.forceActiveFocus();keyClick(Qt.Key_V,Qt.ControlModifier)
+                child("settingsButton").forceActiveFocus();search.forceActiveFocus()
+                tryCompare(search,"pastePending",false,2000);wait(20)
+                equal(search.text,"","Focus roundtrip invalidates pending paste")
+            }
+            function test_paste_failure_and_capacity() {
+                var search=pasteField("paste-error.py")
+                search.text="keep";keyClick(Qt.Key_V,Qt.ControlModifier)
+                tryCompare(search,"pastePending",false,2000);wait(20)
+                equal(search.text,"keep","Failure preserves search")
+                check(board.statusText.indexOf("Paste skipped:")===0,"Failure is visible")
+                search.helperPath=Quickshell.env("OMAVALET_TEST_OUTPUT")+"/paste-ok.py"
+                search.text="x".repeat(255);search.cursorPosition=255
+                keyClick(Qt.Key_V,Qt.ControlModifier)
+                tryCompare(search,"pastePending",false,2000);wait(20)
+                equal(search.text.length,255,"Oversize insertion rejected, not truncated")
+            }
+            function test_middle_and_right_click_blocked() {
+                var search=pasteField("paste-ok.py")
+                search.text="keep";search.selectAll()
+                mouseClick(search,search.width/2,search.height/2,Qt.MiddleButton)
+                equal(search.text,"keep","Middle-button cannot paste selection")
+                check(!search.pastePending,"Middle-button does not invoke helper")
+                mouseClick(search,search.width/2,search.height/2,Qt.RightButton)
+                equal(search.text,"keep","Right-button has no native paste menu")
+            }
             function test_keyboard_destination() {
                 var search = child("appSearch")
                 search.forceActiveFocus()
@@ -204,7 +283,7 @@ ShellRoot {
                 check(!board.debugState().cameoLoaded,"Finite animation unloads after timeout")
             }
             function run() {
-                var names=["search_digits","keyboard_destination","click_and_overflow","workspace_icons_at_narrow_width","login_rocket_badge","popup_login_failure_and_locked_rule","drag_to_lane","ten_lanes_scroll","malformed_snapshot_and_retry","success_clears_retry","rapid_requests_are_serialized","settings_focus_and_off","reduced_motion","animation_and_teardown"]
+                var names=["search_digits","search_native_editing","paste_shortcuts_and_selection","paste_stale_edit_and_cursor","paste_stale_close_and_focus","paste_failure_and_capacity","middle_and_right_click_blocked","keyboard_destination","click_and_overflow","workspace_icons_at_narrow_width","login_rocket_badge","popup_login_failure_and_locked_rule","drag_to_lane","ten_lanes_scroll","malformed_snapshot_and_retry","success_clears_retry","rapid_requests_are_serialized","settings_focus_and_off","reduced_motion","animation_and_teardown"]
                 var failures=[]
                 for (var i=0;i<names.length;i++) {
                     try { reset(); tests["test_"+names[i]](); passed++; console.log("NATIVE_PASS",names[i]) }

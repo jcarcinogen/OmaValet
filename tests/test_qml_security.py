@@ -37,6 +37,19 @@ class QmlSecurityTest(unittest.TestCase):
                 start += 1
         self.assertGreaterEqual(count, 10)
 
+    def test_search_has_no_eager_text_input_or_native_paste(self):
+        import re
+        for name in ("Board.qml", "SafeSearchField.qml"):
+            source = (ROOT / name).read_text()
+            self.assertIsNone(re.search(r'\b(?:TextField|TextInput|TextArea)\s*\{', source))
+            self.assertNotIn('.paste(', source)
+        search = (ROOT / "SafeSearchField.qml").read_text()
+        self.assertIn('textFormat: TextEdit.PlainText', search)
+        self.assertIn('event.matches(StandardKey.Paste)', search)
+        self.assertIn('Qt.MiddleButton | Qt.RightButton', search)
+        self.assertIn('requestedRevision !== revision', search)
+        self.assertIn('pasteAllowed: root.active && !root.modalOpen', (ROOT / "Board.qml").read_text())
+
     def test_commands_use_argv_and_cameo_is_local(self):
         board = (ROOT / "Board.qml").read_text()
         cameo = (ROOT / "Celebration.qml").read_text()

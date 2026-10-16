@@ -245,20 +245,15 @@ FocusScope {
                 Layout.preferredWidth: Math.min(Style.space(285), root.width * 0.29)
                 Layout.fillHeight: true
                 spacing: Style.space(8)
-                TextField {
+                SafeSearchField {
                     id: search
                     objectName: "appSearch"
                     Layout.fillWidth: true
-                    implicitHeight: Style.space(42)
-                    placeholderText: "Search apps"
-                    color: Color.menu.text
-                    placeholderTextColor: Qt.alpha(Color.menu.text, 0.7)
-                    selectionColor: Color.accent
-                    font.family: Style.font.family
-                    font.pixelSize: Style.font.body
-                    background: Rectangle { color: Qt.alpha(Color.menu.text, 0.06); radius: Style.cornerRadius; border.width: search.activeFocus ? 1 : 0; border.color: Color.accent }
+                    Layout.preferredHeight: Style.space(42)
+                    pasteAllowed: root.active && !root.modalOpen
+                    onPasteFailed: function(message) { root.statusText = message }
                     onTextChanged: { root.destinationMode = false; appList.currentIndex = 0 }
-                    Keys.onPressed: function(event) {
+                    onNavigationKey: function(event) {
                         if (event.key === Qt.Key_Escape) { root.handleEscape(); event.accepted = true }
                         else if (event.key === Qt.Key_Down) { appList.forceActiveFocus(); event.accepted = true }
                         else if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && root.apps.length) { root.chooseApp(root.apps[0]); event.accepted = true }
